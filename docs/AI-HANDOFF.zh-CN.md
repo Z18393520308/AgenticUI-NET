@@ -1,19 +1,20 @@
 # AgenticUI.NET AI 开发交接文档
 
 > 本文档的目标读者是接手本仓库继续开发的 AI 编程代理。开始工作前请完整阅读本文，
-> 然后阅读 `README.md`、`docs/architecture.zh-CN.md`、
+> 并先阅读最新的 `docs/PROJECT-MEMORY.zh-CN.md`，然后阅读 `README.md`、
+> `docs/architecture.zh-CN.md`、
 > `docs/local-protocol.zh-CN.md` 和 `SECURITY.md`。
 
 ## 1. 项目身份
 
 - 项目名称：`AgenticUI.NET`
 - GitHub：<https://github.com/Z18393520308/AgenticUI-NET>
-- 当前阶段：`0.2.0-preview.1`
+- 当前稳定版：`0.2.0`
 - 当前默认分支：`main`
-- 本文档编写时的 `main` 提交：`0e51d1c`
 - 技术栈：C#、WPF、Windows Forms、Named Pipe、JSONL
 - 目标框架：`.NET 8`、`.NET Framework 4.8`
-- 当前正式许可证：未决定，仓库暂时没有 `LICENSE`
+- 开源许可证：`AGPL-3.0-only`，另提供商业许可路径
+- 发布状态：四个 `0.2.0` NuGet 包、GitHub Release 和官网均已发布
 
 项目不是普通的主题或皮肤控件库。它的核心目标是让 AI Agent 能够：
 
