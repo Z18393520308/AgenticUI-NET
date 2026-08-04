@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: write
+  id-token: write
 
 jobs:
   validate-publish:
@@ -46,9 +47,16 @@ jobs:
       - name: Pack
         run: dotnet pack AgenticUI.NET.sln --configuration Release --no-build --output artifacts/packages
 
+      - name: NuGet login
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: NuGet/login@v1
+        id: login
+        with:
+          user: EmoZhang
+
       - name: Publish to nuget.org
         if: startsWith(github.ref, 'refs/tags/')
-        run: dotnet nuget push "artifacts/packages/*.nupkg" --api-key "${{ secrets.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json --skip-duplicate
+        run: dotnet nuget push "artifacts/packages/*.nupkg" --api-key "${{ steps.login.outputs.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json --skip-duplicate
 
       - name: Create GitHub release
         if: startsWith(github.ref, 'refs/tags/')
