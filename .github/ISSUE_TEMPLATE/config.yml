@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 安全漏洞
+    url: https://github.com/Z18393520308/AgenticUI-NET/security/advisories/new
+    about: 请通过私密漏洞报告提交仍可利用的安全问题

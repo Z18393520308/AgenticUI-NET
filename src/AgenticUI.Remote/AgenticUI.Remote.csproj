@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>net8.0;net48</TargetFrameworks>
+    <RootNamespace>AgenticUI.Remote</RootNamespace>
+    <PackageId>AgenticUI.Remote</PackageId>
+    <IsPackable>true</IsPackable>
+    <Description>Local named-pipe gateway for AgenticUI.NET.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\AgenticUI.Core\AgenticUI.Core.csproj" />
+    <PackageReference Include="System.Text.Json" Version="8.0.5" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <RootNamespace>AgenticUI.RemoteConsole.Wpf</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\AgenticUI.Core\AgenticUI.Core.csproj" />
+    <ProjectReference Include="..\..\..\src\AgenticUI.Remote\AgenticUI.Remote.csproj" />
+  </ItemGroup>
+</Project>

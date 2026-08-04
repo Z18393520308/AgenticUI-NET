@@ -1,0 +1,18 @@
+<Project>
+  <ItemGroup Condition="'$(TargetFrameworkIdentifier)' == '.NETFramework'">
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies"
+                      Version="1.0.3"
+                      PrivateAssets="All" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(IsPackable)' == 'true'">
+    <None Include="$(MSBuildThisFileDirectory)NUGET-README.md"
+          Pack="true"
+          PackagePath="\" />
+    <None Include="$(MSBuildThisFileDirectory)LICENSE"
+          Pack="true"
+          PackagePath="\" />
+    <None Include="$(MSBuildThisFileDirectory)LICENSING.md"
+          Pack="true"
+          PackagePath="\" />
+  </ItemGroup>
+</Project>

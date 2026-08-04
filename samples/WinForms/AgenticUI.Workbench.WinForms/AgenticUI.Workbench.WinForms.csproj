@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <RootNamespace>AgenticUI.Workbench.WinForms</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\AgenticUI.Core\AgenticUI.Core.csproj" />
+    <ProjectReference Include="..\..\..\src\AgenticUI.Remote\AgenticUI.Remote.csproj" />
+    <ProjectReference Include="..\..\..\src\AgenticUI.WinForms\AgenticUI.WinForms.csproj" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,39 @@
+name: Bug 报告
+description: 提交可复现的 AgenticUI.NET 行为问题
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: dropdown
+    id: ui
+    attributes:
+      label: UI 技术
+      options: [WPF, WinForms, Core/Remote, 其他]
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: AgenticUI.NET 与 .NET 版本
+      placeholder: "AgenticUI.NET 0.2.0 / .NET 8"
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: 最小复现步骤
+      description: 请删除令牌、密码、个人信息和业务敏感数据。
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 预期行为与实际行为
+    validations:
+      required: true
+  - type: checkboxes
+    id: security
+    attributes:
+      label: 安全确认
+      options:
+        - label: 这不是仍可利用的安全漏洞；安全漏洞将按 SECURITY.md 私密报告。
+          required: true

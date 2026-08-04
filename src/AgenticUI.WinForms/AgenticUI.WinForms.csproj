@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>net8.0-windows;net48</TargetFrameworks>
+    <UseWindowsForms>true</UseWindowsForms>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <RootNamespace>AgenticUI.WinForms</RootNamespace>
+    <PackageId>AgenticUI.WinForms</PackageId>
+    <IsPackable>true</IsPackable>
+    <Description>Windows Forms controls and native-control binding for AgenticUI.NET.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\AgenticUI.Core\AgenticUI.Core.csproj" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,27 @@
+<Project>
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <Deterministic>true</Deterministic>
+    <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
+    <PathMap>$(MSBuildThisFileDirectory)=/_/</PathMap>
+    <VersionPrefix>0.2.0</VersionPrefix>
+    <VersionSuffix></VersionSuffix>
+    <Authors>AgenticUI.NET Contributors</Authors>
+    <Copyright>Copyright © AgenticUI.NET Contributors</Copyright>
+    <RepositoryType>git</RepositoryType>
+    <RepositoryUrl>https://github.com/Z18393520308/AgenticUI-NET</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/Z18393520308/AgenticUI-NET</PackageProjectUrl>
+    <PackageReadmeFile>NUGET-README.md</PackageReadmeFile>
+    <PackageLicenseExpression>AGPL-3.0-only</PackageLicenseExpression>
+    <PackageTags>ai;agent;agentic;wpf;winforms;controls;automation;semantic-ui</PackageTags>
+    <PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+</Project>

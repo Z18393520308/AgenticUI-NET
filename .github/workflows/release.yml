@@ -1,0 +1,67 @@
+name: Release NuGet packages
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  validate-publish:
+    runs-on: windows-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Verify tag matches package version
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        run: |
+          $expected = "v$((Select-Xml -Path Directory.Build.props -XPath '/Project/PropertyGroup/VersionPrefix').Node.InnerText)"
+          if ("${{ github.ref_name }}" -ne $expected) {
+            throw "Tag ${{ github.ref_name }} does not match $expected"
+          }
+
+      - name: Restore
+        run: dotnet restore AgenticUI.NET.sln
+
+      - name: Build
+        run: dotnet build AgenticUI.NET.sln --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test AgenticUI.NET.sln --configuration Release --no-build
+
+      - name: Pack
+        run: dotnet pack AgenticUI.NET.sln --configuration Release --no-build --output artifacts/packages
+
+      - name: Publish to nuget.org
+        if: startsWith(github.ref, 'refs/tags/')
+        run: dotnet nuget push "artifacts/packages/*.nupkg" --api-key "${{ secrets.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json --skip-duplicate
+
+      - name: Create GitHub release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: gh release create "${{ github.ref_name }}" artifacts/packages/* --title "AgenticUI.NET ${{ github.ref_name }}" --generate-notes
+
+      - name: Upload packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: nuget-packages
+          path: |
+            artifacts/packages/*.nupkg
+            artifacts/packages/*.snupkg
+          if-no-files-found: error

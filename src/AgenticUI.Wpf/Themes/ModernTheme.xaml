@@ -1,0 +1,34 @@
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Color x:Key="AgenticAccentColor">#2D7DFF</Color>
+  <SolidColorBrush x:Key="AgenticAccentBrush" Color="{StaticResource AgenticAccentColor}" />
+  <SolidColorBrush x:Key="AgenticSurfaceBrush" Color="#FFFFFF" />
+  <SolidColorBrush x:Key="AgenticBorderBrush" Color="#D5DCE8" />
+  <Style x:Key="AgenticModernButton" TargetType="{x:Type Button}">
+    <Setter Property="Background" Value="{StaticResource AgenticAccentBrush}" />
+    <Setter Property="Foreground" Value="White" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Padding" Value="18,9" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Cursor" Value="Hand" />
+  </Style>
+  <Style x:Key="AgenticModernTextBox" TargetType="{x:Type TextBox}">
+    <Setter Property="Background" Value="{StaticResource AgenticSurfaceBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource AgenticBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Padding" Value="10,8" />
+  </Style>
+  <Style x:Key="AgenticModernPasswordBox" TargetType="{x:Type PasswordBox}">
+    <Setter Property="Background" Value="{StaticResource AgenticSurfaceBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource AgenticBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Padding" Value="10,8" />
+  </Style>
+  <Style x:Key="AgenticModernComboBox" TargetType="{x:Type ComboBox}">
+    <Setter Property="Background" Value="{StaticResource AgenticSurfaceBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource AgenticBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Padding" Value="8,6" />
+  </Style>
+</ResourceDictionary>

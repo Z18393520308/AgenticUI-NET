@@ -1,0 +1,9 @@
+node_modules/
+dist/
+
+# Local visual QA artifacts
+AGENTS.md
+design-qa.md
+design-reference.png
+design-comparison*.png
+implementation-*.png

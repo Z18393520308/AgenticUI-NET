@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-test-pack:
+    runs-on: windows-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore
+        run: dotnet restore AgenticUI.NET.sln
+
+      - name: Build
+        run: dotnet build AgenticUI.NET.sln --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test AgenticUI.NET.sln --configuration Release --no-build
+
+      - name: Pack
+        run: dotnet pack AgenticUI.NET.sln --configuration Release --no-build --output artifacts/packages
+
+      - name: Upload packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: nuget-packages
+          path: |
+            artifacts/packages/*.nupkg
+            artifacts/packages/*.snupkg
+          if-no-files-found: error

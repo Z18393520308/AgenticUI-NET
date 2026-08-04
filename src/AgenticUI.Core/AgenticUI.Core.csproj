@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>net8.0;netstandard2.0</TargetFrameworks>
+    <RootNamespace>AgenticUI</RootNamespace>
+    <PackageId>AgenticUI.Core</PackageId>
+    <IsPackable>true</IsPackable>
+    <Description>Framework-independent semantic UI protocol for AI-controllable applications.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="System.Text.Json" Version="8.0.5" />
+  </ItemGroup>
+</Project>

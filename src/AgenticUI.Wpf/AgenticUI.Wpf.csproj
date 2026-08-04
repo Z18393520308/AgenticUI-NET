@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>net8.0-windows;net48</TargetFrameworks>
+    <UseWPF>true</UseWPF>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <RootNamespace>AgenticUI.Wpf</RootNamespace>
+    <PackageId>AgenticUI.Wpf</PackageId>
+    <IsPackable>true</IsPackable>
+    <Description>WPF controls and attached behaviors for AgenticUI.NET.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\AgenticUI.Core\AgenticUI.Core.csproj" />
+  </ItemGroup>
+</Project>
