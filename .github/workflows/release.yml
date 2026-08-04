@@ -56,7 +56,14 @@ jobs:
 
       - name: Publish to nuget.org
         if: startsWith(github.ref, 'refs/tags/')
-        run: dotnet nuget push "artifacts/packages/*.nupkg" --api-key "${{ steps.login.outputs.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json --skip-duplicate
+        shell: pwsh
+        run: |
+          Get-ChildItem -Path "artifacts/packages" -Filter "*.nupkg" | ForEach-Object {
+            dotnet nuget push $_.FullName --api-key "${{ steps.login.outputs.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json --skip-duplicate
+            if ($LASTEXITCODE -ne 0) {
+              exit $LASTEXITCODE
+            }
+          }
 
       - name: Create GitHub release
         if: startsWith(github.ref, 'refs/tags/')
