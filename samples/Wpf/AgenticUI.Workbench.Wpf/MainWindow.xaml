@@ -3,224 +3,268 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:agentic="clr-namespace:AgenticUI.Wpf;assembly=AgenticUI.Wpf"
         Title="AgenticUI.NET Workbench (WPF)"
-        Width="1180"
+        Width="1080"
         Height="760"
-        MinWidth="940"
-        MinHeight="600"
+        MinWidth="900"
+        MinHeight="640"
         WindowStartupLocation="CenterScreen">
   <AdornerDecorator>
-    <Grid Margin="0">
-      <Grid.ColumnDefinitions>
-        <ColumnDefinition Width="480" MinWidth="340" />
-        <ColumnDefinition Width="6" />
-        <ColumnDefinition Width="*" MinWidth="480" />
-      </Grid.ColumnDefinitions>
+    <DockPanel>
+      <StatusBar DockPanel.Dock="Bottom" Padding="12,4">
+        <TextBlock x:Name="PipeStatusText"
+                   Cursor="Hand"
+                   ToolTip="点击复制管道名"
+                   MouseLeftButtonUp="PipeStatusText_OnMouseLeftButtonUp" />
+        <TextBlock Text="  ·  " Margin="4,0" />
+        <TextBlock x:Name="TokenStatusText"
+                   Cursor="Hand"
+                   ToolTip="点击复制令牌"
+                   MouseLeftButtonUp="TokenStatusText_OnMouseLeftButtonUp" />
+        <TextBlock x:Name="StatusHintText" Margin="12,0,0,0" />
+      </StatusBar>
 
-      <ScrollViewer x:Name="DemoScroll" Grid.Column="0" Padding="28" VerticalScrollBarVisibility="Auto">
-        <StackPanel>
+      <DockPanel Margin="20">
+        <StackPanel DockPanel.Dock="Top" Margin="0,0,0,12">
           <TextBlock x:Name="TitleText"
                      Text="AI 原生控件演示 (WPF)"
                      FontSize="22"
                      FontWeight="Bold"
                      Margin="0,0,0,12" />
-
           <TextBlock Text="界面主题" Margin="0,0,0,4" />
           <agentic:AgenticComboBox x:Name="ThemeCombo"
+                                   Width="280"
+                                   HorizontalAlignment="Left"
                                    AgenticId="ui.theme"
                                    AgenticDisplayName="界面主题"
                                    Hint="切换原生外观或现代主题"
                                    IsEditable="False"
-                                   Margin="0,0,0,18"
                                    SelectionChanged="ThemeCombo_OnSelectionChanged" />
-
-          <TextBlock Text="账号" Margin="0,0,0,4" />
-          <agentic:AgenticTextBox x:Name="UsernameBox"
-                                  AgenticId="login.username"
-                                  AgenticDisplayName="登录账号"
-                                  InstructionNumber="1"
-                                  Hint="请输入账号"
-                                  Margin="0,0,0,14" />
-
-          <TextBlock Text="密码（日志默认脱敏）" Margin="0,0,0,4" />
-          <PasswordBox x:Name="PasswordBox"
-                       agentic:AgenticProperties.Enabled="True"
-                       agentic:AgenticProperties.Id="login.password"
-                       agentic:AgenticProperties.DisplayName="登录密码"
-                       agentic:AgenticProperties.Sensitive="True"
-                       agentic:AgenticProperties.InstructionNumber="2"
-                       agentic:AgenticProperties.Hint="请输入密码"
-                       PasswordChar="•"
-                       Height="28"
-                       Margin="0,0,0,14" />
-
-          <TextBlock Text="用户角色" Margin="0,0,0,4" />
-          <agentic:AgenticComboBox x:Name="RoleCombo"
-                                   AgenticId="login.role"
-                                   AgenticDisplayName="用户角色"
-                                   IsEditable="False"
-                                   Margin="0,0,0,14" />
-
-          <agentic:AgenticCheckBox AgenticId="login.remember"
-                                   Content="记住我"
-                                   Margin="0,4,0,12" />
-
-          <agentic:AgenticRadioButton AgenticId="login.mode.safe"
-                                      Content="安全模式"
-                                      IsChecked="True"
-                                      Margin="0,4,0,18" />
-
-          <agentic:AgenticButton x:Name="LoginButton"
-                                 AgenticId="login.submit"
-                                 AgenticDisplayName="登录"
-                                 InstructionNumber="3"
-                                 Hint="请点击登录"
-                                 Content="登录"
-                                 Height="42"
-                                 Margin="0,0,0,14"
-                                 Click="LoginButton_OnClick" />
-
-          <agentic:AgenticButton x:Name="OpenDialogButton"
-                                 AgenticId="dialog.open"
-                                 AgenticDisplayName="打开确认弹窗"
-                                 InstructionNumber="4"
-                                 Hint="打开可远程控制的模态确认弹窗"
-                                 Content="打开确认弹窗"
-                                 Height="42"
-                                 Margin="0,0,0,14"
-                                 Click="OpenDialogButton_OnClick" />
-
-          <Button x:Name="NativeBoundButton"
-                  Content="原生按钮 + 附加属性"
-                  Height="38"
-                  agentic:AgenticProperties.Enabled="True"
-                  agentic:AgenticProperties.Id="native.boundButton"
-                  agentic:AgenticProperties.DisplayName="通过附加属性接入的原生按钮"
-                  agentic:AgenticProperties.InstructionNumber="5"
-                  agentic:AgenticProperties.Hint="无需替换原有控件"
-                  Margin="0,16,0,14" />
-
-          <TextBlock Text="高级控件" FontWeight="Bold" Margin="0,8,0,8" />
-          <DatePicker agentic:AgenticProperties.Enabled="True"
-                      agentic:AgenticProperties.Id="demo.date"
-                      agentic:AgenticProperties.DisplayName="演示日期"
-                      Margin="0,0,0,8" />
-          <ListBox Height="62"
-                   agentic:AgenticProperties.Enabled="True"
-                   agentic:AgenticProperties.Id="demo.list"
-                   agentic:AgenticProperties.DisplayName="演示列表"
-                   Margin="0,0,0,8">
-            <ListBoxItem>北京</ListBoxItem><ListBoxItem>上海</ListBoxItem><ListBoxItem>广州</ListBoxItem>
-          </ListBox>
-          <Slider Minimum="0" Maximum="100" Value="40"
-                  agentic:AgenticProperties.Enabled="True"
-                  agentic:AgenticProperties.Id="demo.volume"
-                  agentic:AgenticProperties.DisplayName="演示音量"
-                  Margin="0,0,0,8" />
-          <ToggleButton Content="启用高级选项"
-                        agentic:AgenticProperties.Enabled="True"
-                        agentic:AgenticProperties.Id="demo.toggle"
-                        agentic:AgenticProperties.DisplayName="高级选项开关"
-                        Margin="0,0,0,8" />
-          <TabControl Height="90"
-                      agentic:AgenticProperties.Enabled="True"
-                      agentic:AgenticProperties.Id="demo.tabs"
-                      agentic:AgenticProperties.DisplayName="演示标签页">
-            <TabItem Header="概览" /><TabItem Header="详情" /><TabItem Header="设置" />
-          </TabControl>
-          <TextBlock Text="中优先级控件" FontWeight="Bold" Margin="0,16,0,8" />
-          <agentic:AgenticTextBlock AgenticId="demo.statusText" Text="状态：就绪" Margin="0,0,0,8" />
-          <agentic:AgenticProgressBar AgenticId="demo.progress" Value="35" Maximum="100" Height="18" Margin="0,0,0,8" />
-          <agentic:AgenticListView x:Name="DemoListView" AgenticId="demo.listView" Height="70" Margin="0,0,0,8">
-            <ListView.View>
-              <GridView>
-                <GridViewColumn Header="名称" Width="100" DisplayMemberBinding="{Binding Name}" />
-                <GridViewColumn Header="城市" Width="100" DisplayMemberBinding="{Binding City}" />
-              </GridView>
-            </ListView.View>
-          </agentic:AgenticListView>
-          <agentic:AgenticTreeView AgenticId="demo.tree" Height="80" Margin="0,0,0,8"><TreeViewItem Header="公司"><TreeViewItem Header="研发" /><TreeViewItem Header="销售" /></TreeViewItem></agentic:AgenticTreeView>
-          <agentic:AgenticDataGrid x:Name="DemoGrid" AgenticId="demo.grid" AutoGenerateColumns="False" Height="100" Margin="0,0,0,8"><DataGrid.Columns><DataGridTextColumn Header="Name" Binding="{Binding Name}" /><DataGridTextColumn Header="Role" Binding="{Binding Role}" /></DataGrid.Columns></agentic:AgenticDataGrid>
-          <agentic:AgenticMenu AgenticId="demo.menu" Margin="0,0,0,8"><MenuItem Header="文件"><MenuItem Header="打开" /></MenuItem></agentic:AgenticMenu>
-          <agentic:AgenticToolBar AgenticId="demo.toolbar"><Button Content="刷新" /><Button Content="导出" /></agentic:AgenticToolBar>
         </StackPanel>
-      </ScrollViewer>
 
-      <GridSplitter Grid.Column="1"
-                    Width="6"
-                    HorizontalAlignment="Stretch"
-                    Background="#E5EAF2" />
+        <agentic:AgenticTabControl Margin="0,4,0,0"
+                                   AgenticId="ui.rootTabs"
+                                   AgenticDisplayName="主界面标签页"
+                                   Hint="切换登录、高优先级、中优先级演示页">
+          <!-- 登录与操作 -->
+          <TabItem Header="登录与操作">
+            <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="16">
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" MinWidth="320" />
+                  <ColumnDefinition Width="24" />
+                  <ColumnDefinition Width="*" MinWidth="320" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
 
-      <TabControl x:Name="InspectorTabs" Grid.Column="2" Margin="16">
-        <TabItem Header="控件树">
-          <Grid Margin="6">
-            <Grid.RowDefinitions>
-              <RowDefinition Height="Auto" />
-              <RowDefinition Height="Auto" />
-              <RowDefinition Height="*" />
-              <RowDefinition Height="Auto" />
-              <RowDefinition Height="Auto" />
-            </Grid.RowDefinitions>
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="登录" FontWeight="Bold" FontSize="14" Margin="0,0,0,10" />
+                <TextBlock Grid.Row="0" Grid.Column="2" Text="操作" FontWeight="Bold" FontSize="14" Margin="0,0,0,10" />
 
-            <Grid Grid.Row="0" Margin="0,0,0,8">
-              <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="*" />
-              </Grid.ColumnDefinitions>
-              <TextBlock Text="管道名称" VerticalAlignment="Center" Margin="0,0,8,0" />
-              <TextBox x:Name="PipeNameBox" Grid.Column="1" IsReadOnly="True" />
-            </Grid>
+                <StackPanel Grid.Row="1" Grid.Column="0">
+                  <TextBlock Text="账号" Margin="0,0,0,4" />
+                  <agentic:AgenticTextBox x:Name="UsernameBox"
+                                          AgenticId="login.username"
+                                          AgenticDisplayName="登录账号"
+                                          InstructionNumber="1"
+                                          Hint="请输入账号"
+                                          Margin="0,0,0,12" />
+                  <TextBlock Text="密码（日志默认脱敏）" Margin="0,0,0,4" />
+                  <PasswordBox x:Name="PasswordBox"
+                               agentic:AgenticProperties.Enabled="True"
+                               agentic:AgenticProperties.Id="login.password"
+                               agentic:AgenticProperties.DisplayName="登录密码"
+                               agentic:AgenticProperties.Sensitive="True"
+                               agentic:AgenticProperties.InstructionNumber="2"
+                               agentic:AgenticProperties.Hint="请输入密码"
+                               PasswordChar="•"
+                               Height="28"
+                               Margin="0,0,0,12" />
+                  <TextBlock Text="用户角色" Margin="0,0,0,4" />
+                  <agentic:AgenticComboBox x:Name="RoleCombo"
+                                           AgenticId="login.role"
+                                           AgenticDisplayName="用户角色"
+                                           IsEditable="False"
+                                           Margin="0,0,0,12" />
+                  <StackPanel Orientation="Horizontal">
+                    <agentic:AgenticCheckBox AgenticId="login.remember" Content="记住我" Margin="0,0,16,0" />
+                    <agentic:AgenticRadioButton AgenticId="login.mode.safe" Content="安全模式" IsChecked="True" />
+                  </StackPanel>
+                </StackPanel>
 
-            <Grid Grid.Row="1" Margin="0,0,0,8">
-              <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="*" />
-              </Grid.ColumnDefinitions>
-              <TextBlock Text="远程连接令牌" VerticalAlignment="Center" Margin="0,0,8,0" />
-              <TextBox x:Name="TokenBox" Grid.Column="1" IsReadOnly="True" />
-            </Grid>
+                <StackPanel Grid.Row="1" Grid.Column="2">
+                  <agentic:AgenticButton x:Name="LoginButton"
+                                         AgenticId="login.submit"
+                                         AgenticDisplayName="登录"
+                                         InstructionNumber="3"
+                                         Hint="请点击登录"
+                                         Content="登录"
+                                         Height="40"
+                                         Margin="0,0,0,12"
+                                         Click="LoginButton_OnClick" />
+                  <agentic:AgenticButton x:Name="OpenDialogButton"
+                                         AgenticId="dialog.open"
+                                         AgenticDisplayName="打开确认弹窗"
+                                         InstructionNumber="4"
+                                         Hint="打开可远程控制的模态确认弹窗"
+                                         Content="打开确认弹窗"
+                                         Height="40"
+                                         Margin="0,0,0,12"
+                                         Click="OpenDialogButton_OnClick" />
+                  <Button x:Name="NativeBoundButton"
+                          Content="原生按钮 + 附加属性"
+                          Height="38"
+                          agentic:AgenticProperties.Enabled="True"
+                          agentic:AgenticProperties.Id="native.boundButton"
+                          agentic:AgenticProperties.DisplayName="通过附加属性接入的原生按钮"
+                          agentic:AgenticProperties.InstructionNumber="5"
+                          agentic:AgenticProperties.Hint="无需替换原有控件" />
+                </StackPanel>
+              </Grid>
+            </ScrollViewer>
+          </TabItem>
 
-            <ListBox x:Name="ControlsList"
-                     Grid.Row="2"
-                     DisplayMemberPath="Id"
-                     SelectionChanged="ControlsList_OnSelectionChanged" />
+          <!-- 高优先级 -->
+          <TabItem Header="高优先级">
+            <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="16">
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" MinWidth="320" />
+                  <ColumnDefinition Width="24" />
+                  <ColumnDefinition Width="*" MinWidth="320" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
 
-            <Grid Grid.Row="3" Margin="0,8,0,8">
-              <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="Auto" />
-              </Grid.ColumnDefinitions>
-              <TextBlock Text="输入文本" VerticalAlignment="Center" Margin="0,0,8,0" />
-              <TextBox x:Name="InputTextBox"
-                       Grid.Column="1"
-                       KeyDown="InputTextBox_OnKeyDown" />
-              <Button Grid.Column="2"
-                      Content="读取"
-                      Margin="8,0,0,0"
-                      Padding="12,4"
-                      Click="Read_OnClick" />
-              <Button Grid.Column="3"
-                      Content="设置文本"
-                      Margin="8,0,0,0"
-                      Padding="12,4"
-                      Click="SetText_OnClick" />
-            </Grid>
+                <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,0,16">
+                  <TextBlock Text="日期" Margin="0,0,0,4" />
+                  <DatePicker agentic:AgenticProperties.Enabled="True"
+                              agentic:AgenticProperties.Id="demo.date"
+                              agentic:AgenticProperties.DisplayName="演示日期" />
+                </StackPanel>
+                <StackPanel Grid.Row="0" Grid.Column="2" Margin="0,0,0,16">
+                  <TextBlock Text="音量" Margin="0,0,0,4" />
+                  <Slider Minimum="0" Maximum="100" Value="40"
+                          agentic:AgenticProperties.Enabled="True"
+                          agentic:AgenticProperties.Id="demo.volume"
+                          agentic:AgenticProperties.DisplayName="演示音量" />
+                  <ToggleButton Content="启用高级选项"
+                                Margin="0,12,0,0"
+                                agentic:AgenticProperties.Enabled="True"
+                                agentic:AgenticProperties.Id="demo.toggle"
+                                agentic:AgenticProperties.DisplayName="高级选项开关" />
+                </StackPanel>
 
-            <WrapPanel Grid.Row="4">
-              <Button Content="刷新" Margin="0,4,8,4" Padding="12,4" Click="Refresh_OnClick" />
-              <Button Content="高亮" Margin="0,4,8,4" Padding="12,4" Click="Highlight_OnClick" />
-              <Button Content="取消高亮" Margin="0,4,8,4" Padding="12,4" Click="ClearHighlight_OnClick" />
-              <Button Content="点击" Margin="0,4,8,4" Padding="12,4" Click="Click_OnClick" />
-              <Button Content="选择下一项" Margin="0,4,8,4" Padding="12,4" Click="SelectNext_OnClick" />
-              <Button Content="聚焦" Margin="0,4,8,4" Padding="12,4" Click="Focus_OnClick" />
-            </WrapPanel>
-          </Grid>
-        </TabItem>
-        <TabItem Header="事件流">
-          <ListBox x:Name="EventsList" Margin="6" />
-        </TabItem>
-      </TabControl>
-    </Grid>
+                <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,0,16">
+                  <TextBlock Text="列表" Margin="0,0,0,4" />
+                  <ListBox Height="100"
+                           agentic:AgenticProperties.Enabled="True"
+                           agentic:AgenticProperties.Id="demo.list"
+                           agentic:AgenticProperties.DisplayName="演示列表">
+                    <ListBoxItem>北京</ListBoxItem>
+                    <ListBoxItem>上海</ListBoxItem>
+                    <ListBoxItem>广州</ListBoxItem>
+                  </ListBox>
+                </StackPanel>
+                <StackPanel Grid.Row="1" Grid.Column="2" Margin="0,0,0,16">
+                  <TextBlock Text="标签页" Margin="0,0,0,4" />
+                  <TabControl Height="110"
+                              agentic:AgenticProperties.Enabled="True"
+                              agentic:AgenticProperties.Id="demo.tabs"
+                              agentic:AgenticProperties.DisplayName="演示标签页">
+                    <TabItem Header="概览" />
+                    <TabItem Header="详情" />
+                    <TabItem Header="设置" />
+                  </TabControl>
+                </StackPanel>
+
+                <StackPanel Grid.Row="2" Grid.ColumnSpan="3">
+                  <TextBlock Text="说明：此页演示日期、列表、音量、开关与嵌套标签页。" Foreground="#666" />
+                </StackPanel>
+              </Grid>
+            </ScrollViewer>
+          </TabItem>
+
+          <!-- 中优先级 -->
+          <TabItem Header="中优先级">
+            <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="16">
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" MinWidth="320" />
+                  <ColumnDefinition Width="24" />
+                  <ColumnDefinition Width="*" MinWidth="320" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <StackPanel Grid.Row="0" Grid.ColumnSpan="3" Margin="0,0,0,12">
+                  <agentic:AgenticTextBlock AgenticId="demo.statusText" Text="状态：就绪" Margin="0,0,0,8" />
+                  <agentic:AgenticProgressBar AgenticId="demo.progress" Value="35" Maximum="100" Height="18" />
+                </StackPanel>
+
+                <agentic:AgenticListView x:Name="DemoListView"
+                                         Grid.Row="1" Grid.ColumnSpan="3"
+                                         AgenticId="demo.listView"
+                                         Height="110"
+                                         Margin="0,0,0,16">
+                  <ListView.View>
+                    <GridView>
+                      <GridViewColumn Header="名称" Width="160" DisplayMemberBinding="{Binding Name}" />
+                      <GridViewColumn Header="城市" Width="160" DisplayMemberBinding="{Binding City}" />
+                    </GridView>
+                  </ListView.View>
+                </agentic:AgenticListView>
+
+                <agentic:AgenticTreeView Grid.Row="2" Grid.Column="0"
+                                         AgenticId="demo.tree"
+                                         Height="160"
+                                         Margin="0,0,0,16">
+                  <TreeViewItem Header="公司" IsExpanded="True">
+                    <TreeViewItem Header="研发" />
+                    <TreeViewItem Header="销售" />
+                  </TreeViewItem>
+                </agentic:AgenticTreeView>
+
+                <agentic:AgenticDataGrid x:Name="DemoGrid"
+                                         Grid.Row="2" Grid.Column="2"
+                                         AgenticId="demo.grid"
+                                         AutoGenerateColumns="False"
+                                         Height="160"
+                                         Margin="0,0,0,16">
+                  <DataGrid.Columns>
+                    <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="*" />
+                    <DataGridTextColumn Header="Role" Binding="{Binding Role}" Width="*" />
+                  </DataGrid.Columns>
+                </agentic:AgenticDataGrid>
+
+                <agentic:AgenticMenu Grid.Row="3" Grid.ColumnSpan="3"
+                                     AgenticId="demo.menu"
+                                     Margin="0,0,0,8">
+                  <MenuItem Header="文件">
+                    <MenuItem Header="打开" />
+                  </MenuItem>
+                </agentic:AgenticMenu>
+
+                <agentic:AgenticToolBar Grid.Row="4" Grid.ColumnSpan="3"
+                                        AgenticId="demo.toolbar">
+                  <Button Content="刷新" />
+                  <Button Content="导出" />
+                </agentic:AgenticToolBar>
+              </Grid>
+            </ScrollViewer>
+          </TabItem>
+        </agentic:AgenticTabControl>
+      </DockPanel>
+    </DockPanel>
   </AdornerDecorator>
 </Window>

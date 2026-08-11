@@ -32,6 +32,13 @@
 {"requestId":"list-1","type":"listControls"}
 ```
 
+默认只返回**当前对用户可见、且未被完全遮挡**的控件（在活动标签页内、滚动可视区内、
+宿主窗口未最小化）。需要全量（含隐藏）时设置：
+
+```json
+{"requestId":"list-1","type":"listControls","includeHidden":true}
+```
+
 响应：
 
 ```json
@@ -46,10 +53,15 @@
     "isSensitive":false,
     "isEnabled":true,
     "actions":["focus","highlight","clearHighlight","click"],
-    "state":{"visible":true,"focused":false}
+    "state":{"visible":true,"displayable":true,"focused":false}
   }]
 }
 ```
+
+`state.visible` 为框架级可见性；`state.displayable` 表示是否处于当前可展示区域、
+中心点未被其它控件完全遮挡，且（若存在模态顶级弹窗）属于该弹窗。
+远程默认枚举按 `displayable` 过滤。存在模态弹窗时，远程 `execute` 也只能操作该弹窗内控件，
+以遵守软件原有的模态操作规则。
 
 ## 执行动作
 

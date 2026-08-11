@@ -63,7 +63,7 @@ public sealed class AgenticControlRegistry
         }
     }
 
-    public IReadOnlyList<AgenticControlDescriptor> Snapshot()
+    public IReadOnlyList<AgenticControlDescriptor> Snapshot(bool remotelyDiscoverableOnly = false)
     {
         IAgenticControl[] controls;
         lock (_gate)
@@ -76,10 +76,26 @@ public sealed class AgenticControlRegistry
                 .ToArray();
         }
 
-        // Describe may synchronously marshal to a UI thread. Never hold the registry
-        // lock while waiting for that thread because UI unload/handle events also
-        // register and unregister controls.
-        return controls
+        // Describe / discoverability may synchronously marshal to a UI thread. Never hold
+        // the registry lock while waiting for that thread because UI unload/handle events
+        // also register and unregister controls.
+        IEnumerable<IAgenticControl> query = controls;
+        if (remotelyDiscoverableOnly)
+        {
+            query = query.Where(control =>
+            {
+                try
+                {
+                    return control.IsRemotelyDiscoverable();
+                }
+                catch
+                {
+                    return false;
+                }
+            });
+        }
+
+        return query
             .Select(control => control.Describe())
             .OrderBy(descriptor => descriptor.Id, StringComparer.OrdinalIgnoreCase)
             .ToArray();

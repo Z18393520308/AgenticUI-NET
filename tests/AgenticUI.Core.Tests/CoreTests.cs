@@ -36,7 +36,7 @@ public sealed class CoreTests
             });
         registry.Register(control, "first");
 
-        var snapshot = await Task.Run(registry.Snapshot).WaitAsync(TimeSpan.FromSeconds(3));
+        var snapshot = await Task.Run(() => registry.Snapshot()).WaitAsync(TimeSpan.FromSeconds(3));
 
         Assert.Contains(snapshot, descriptor => descriptor.Id == "first");
     }
@@ -255,6 +255,8 @@ public sealed class CoreTests
             ExecutionCount++;
             return Task.FromResult(AgenticCommandResult.Success(command.RequestId, Describe()));
         }
+
+        public bool IsRemotelyDiscoverable() => true;
     }
 
     private sealed class CallbackControl : IAgenticControl
@@ -283,5 +285,7 @@ public sealed class CoreTests
             AgenticCommand command,
             CancellationToken cancellationToken = default) =>
             Task.FromResult(AgenticCommandResult.Success(command.RequestId, Describe()));
+
+        public bool IsRemotelyDiscoverable() => true;
     }
 }

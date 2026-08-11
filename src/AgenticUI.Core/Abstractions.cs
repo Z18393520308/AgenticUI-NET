@@ -4,6 +4,12 @@ public interface IAgenticControl
 {
     AgenticControlDescriptor Describe();
     Task<AgenticCommandResult> ExecuteAsync(AgenticCommand command, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Whether the control is currently shown to the user (on the active surface,
+    /// within clipped viewport, and not fully obscured). Used by remote listControls.
+    /// </summary>
+    bool IsRemotelyDiscoverable();
 }
 
 public interface IAgenticEventSink

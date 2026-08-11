@@ -112,6 +112,21 @@ internal sealed class WinFormsControlAdapter : IAgenticControl
         return DescribeOnUiThread();
     }
 
+    public bool IsRemotelyDiscoverable()
+    {
+        if (_control.IsDisposed)
+        {
+            return false;
+        }
+
+        if (_control.InvokeRequired)
+        {
+            return (bool)_control.Invoke(new Func<bool>(() => WinFormsDisplayability.IsDisplayable(_control)));
+        }
+
+        return WinFormsDisplayability.IsDisplayable(_control);
+    }
+
     public Task<AgenticCommandResult> ExecuteAsync(
         AgenticCommand command,
         CancellationToken cancellationToken = default)
@@ -161,6 +176,15 @@ internal sealed class WinFormsControlAdapter : IAgenticControl
 
     private void ExecuteOnUiThread(AgenticCommand command)
     {
+        var form = _control.FindForm();
+        if (form is null ||
+            form.IsDisposed ||
+            !WinFormsDisplayability.IsInActiveInteractionScope(form))
+        {
+            throw new InvalidOperationException(
+                "控件当前不可远程操作（被模态弹窗阻挡或不在活动窗口）。");
+        }
+
         var previousSource = _activeSource;
         _activeSource = AgenticEventSource.Remote;
         try
@@ -578,6 +602,7 @@ internal sealed class WinFormsControlAdapter : IAgenticControl
         var state = new Dictionary<string, object?>
         {
             ["visible"] = _control.Visible,
+            ["displayable"] = WinFormsDisplayability.IsDisplayable(_control),
             ["focused"] = _control.Focused
         };
         if (_control is TextBoxBase textBox) state["text"] = Options.IsSensitive ? null : textBox.Text;

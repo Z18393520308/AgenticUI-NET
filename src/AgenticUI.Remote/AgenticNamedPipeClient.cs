@@ -80,7 +80,18 @@ public sealed class AgenticNamedPipeClient : IDisposable
     }
 
     public Task<RemoteResponse> ListControlsAsync(CancellationToken cancellationToken = default) =>
-        SendAsync(new RemoteRequest { Type = RemoteMessageTypes.ListControls }, cancellationToken);
+        ListControlsAsync(includeHidden: false, cancellationToken);
+
+    public Task<RemoteResponse> ListControlsAsync(
+        bool includeHidden,
+        CancellationToken cancellationToken = default) =>
+        SendAsync(
+            new RemoteRequest
+            {
+                Type = RemoteMessageTypes.ListControls,
+                IncludeHidden = includeHidden
+            },
+            cancellationToken);
 
     public Task<RemoteResponse> ExecuteAsync(
         AgenticCommand command,

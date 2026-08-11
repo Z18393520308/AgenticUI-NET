@@ -227,7 +227,7 @@ public sealed class AgenticNamedPipeServer : IDisposable
                 {
                     RequestId = request.RequestId,
                     Type = RemoteMessageTypes.Controls,
-                    Controls = _registry.Snapshot()
+                    Controls = _registry.Snapshot(remotelyDiscoverableOnly: !request.IncludeHidden)
                 };
             case RemoteMessageTypes.Execute when request.Command is not null:
                 return new RemoteResponse

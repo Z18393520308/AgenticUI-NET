@@ -102,6 +102,16 @@ internal sealed class WpfControlAdapter : IAgenticControl
         return _element.Dispatcher.Invoke(DescribeOnUiThread);
     }
 
+    public bool IsRemotelyDiscoverable()
+    {
+        if (_element.Dispatcher.CheckAccess())
+        {
+            return WpfDisplayability.IsDisplayable(_element);
+        }
+
+        return _element.Dispatcher.Invoke(() => WpfDisplayability.IsDisplayable(_element));
+    }
+
     public async Task<AgenticCommandResult> ExecuteAsync(
         AgenticCommand command,
         CancellationToken cancellationToken = default)
@@ -141,6 +151,15 @@ internal sealed class WpfControlAdapter : IAgenticControl
 
     private void ExecuteOnUiThread(AgenticCommand command)
     {
+        var window = Window.GetWindow(_element);
+        if (window is null ||
+            !window.IsVisible ||
+            !WpfDisplayability.IsInActiveInteractionScope(window))
+        {
+            throw new InvalidOperationException(
+                "控件当前不可远程操作（被模态弹窗阻挡或不在活动窗口）。");
+        }
+
         var previousSource = _activeSource;
         _activeSource = AgenticEventSource.Remote;
         try
@@ -522,6 +541,7 @@ internal sealed class WpfControlAdapter : IAgenticControl
         var state = new Dictionary<string, object?>
         {
             ["visible"] = _element.IsVisible,
+            ["displayable"] = WpfDisplayability.IsDisplayable(_element),
             ["focused"] = _element.IsKeyboardFocusWithin
         };
         if (_element is TextBox textBox)

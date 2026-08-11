@@ -16,19 +16,25 @@ public static class RemoteMessageTypes
 
 public sealed class RemoteRequest
 {
-    public string RequestId { get; init; } = Guid.NewGuid().ToString("N");
-    public string Type { get; init; } = "";
-    public string? AuthenticationToken { get; init; }
-    public string? ClientName { get; init; }
-    public AgenticCommand? Command { get; init; }
+    public string RequestId { get; set; } = Guid.NewGuid().ToString("N");
+    public string Type { get; set; } = "";
+    public string? AuthenticationToken { get; set; }
+    public string? ClientName { get; set; }
+    public AgenticCommand? Command { get; set; }
+
+    /// <summary>
+    /// When listing controls, include hidden/obscured/off-screen controls.
+    /// Default is false: remote agents only see currently displayable controls.
+    /// </summary>
+    public bool IncludeHidden { get; set; }
 }
 
 public sealed class RemoteResponse
 {
-    public string? RequestId { get; init; }
-    public string Type { get; init; } = "";
-    public IReadOnlyList<AgenticControlDescriptor>? Controls { get; init; }
-    public AgenticCommandResult? Result { get; init; }
-    public AgenticEvent? Event { get; init; }
-    public string? Error { get; init; }
+    public string? RequestId { get; set; }
+    public string Type { get; set; } = "";
+    public IReadOnlyList<AgenticControlDescriptor>? Controls { get; set; }
+    public AgenticCommandResult? Result { get; set; }
+    public AgenticEvent? Event { get; set; }
+    public string? Error { get; set; }
 }
