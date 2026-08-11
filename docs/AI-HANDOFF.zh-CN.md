@@ -9,12 +9,12 @@
 
 - 项目名称：`AgenticUI.NET`
 - GitHub：<https://github.com/Z18393520308/AgenticUI-NET>
-- 当前稳定版：`0.2.0`
+- 当前稳定版：`0.2.1`
 - 当前默认分支：`main`
 - 技术栈：C#、WPF、Windows Forms、Named Pipe、JSONL
 - 目标框架：`.NET 8`、`.NET Framework 4.8`
 - 开源许可证：`AGPL-3.0-only`，另提供商业许可路径
-- 发布状态：四个 `0.2.0` NuGet 包、GitHub Release 和官网均已发布
+- 发布状态：四个 `0.2.1` NuGet 包、GitHub Release 和官网均已发布
 
 项目不是普通的主题或皮肤控件库。它的核心目标是让 AI Agent 能够：
 
