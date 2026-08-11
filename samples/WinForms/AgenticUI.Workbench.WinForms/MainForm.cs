@@ -107,7 +107,7 @@ public partial class MainForm : Form
             Location = new Point(margin, 78),
             Width = 280
         };
-        themeCombo.Items.AddRange(["原生外观", "现代主题"]);
+        themeCombo.Items.AddRange(new object[] { "原生外观", "现代主题" });
         themeCombo.SelectedIndexChanged += ThemeCombo_SelectedIndexChanged;
         demoPanel.Controls.Add(themeCombo);
 
@@ -198,7 +198,7 @@ public partial class MainForm : Form
             Location = new Point(leftCol, loginY + 22),
             Width = colWidth
         };
-        roleCombo.Items.AddRange(["管理员", "操作员", "访客"]);
+        roleCombo.Items.AddRange(new object[] { "管理员", "操作员", "访客" });
         roleCombo.SelectedIndex = 0;
         host.Controls.Add(roleCombo);
         loginY += 56;
@@ -303,7 +303,7 @@ public partial class MainForm : Form
             Location = new Point(leftCol, rowTop + 22),
             Size = new Size(colWidth, 100)
         };
-        list.Items.AddRange(["北京", "上海", "广州"]);
+        list.Items.AddRange(new object[] { "北京", "上海", "广州" });
         host.Controls.Add(list);
 
         AddCaption(host, "多选", rightCol, rowTop);
@@ -315,7 +315,7 @@ public partial class MainForm : Form
             Location = new Point(rightCol, rowTop + 22),
             Size = new Size(colWidth, 100)
         };
-        checkedList.Items.AddRange(["选项A", "选项B", "选项C"]);
+        checkedList.Items.AddRange(new object[] { "选项A", "选项B", "选项C" });
         host.Controls.Add(checkedList);
         y = rowTop + 140;
 
