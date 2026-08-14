@@ -45,10 +45,10 @@ const integrations = [
     code: [
       ["comment", "# WPF\n"],
       ["plain", "dotnet add package "], ["keyword", "AgenticUI.Wpf"],
-      ["plain", " --version "], ["value", "0.2.0"],
+      ["plain", " --version "], ["value", "0.2.1"],
       ["comment", "\n\n# WinForms\n"],
       ["plain", "dotnet add package "], ["keyword", "AgenticUI.WinForms"],
-      ["plain", " --version "], ["value", "0.2.0"],
+      ["plain", " --version "], ["value", "0.2.1"],
     ],
   },
   {

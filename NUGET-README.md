@@ -7,13 +7,13 @@ AgenticUI.NET 为 WPF 与 Windows Forms 控件提供稳定语义 ID、事件广�
 
 ```powershell
 # WPF
-dotnet add package AgenticUI.Wpf --version 0.2.0
+dotnet add package AgenticUI.Wpf --version 0.2.1
 
 # WinForms
-dotnet add package AgenticUI.WinForms --version 0.2.0
+dotnet add package AgenticUI.WinForms --version 0.2.1
 
 # 可选：本机 Named Pipe 网关
-dotnet add package AgenticUI.Remote --version 0.2.0
+dotnet add package AgenticUI.Remote --version 0.2.1
 ```
 
 支持 .NET 8 和 .NET Framework 4.8。完整示例、快速开始、安全边界和授权说明请访问：

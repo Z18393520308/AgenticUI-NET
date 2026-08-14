@@ -1,6 +1,6 @@
 # AgenticUI.NET 快速开始
 
-本指南以 `0.2.0` 为例。WPF 和 WinForms 应用均可使用 .NET 8；组件库同时兼容
+本指南以 `0.2.1` 为例。WPF 和 WinForms 应用均可使用 .NET 8；组件库同时兼容
 .NET Framework 4.8。
 
 ## 1. 安装包
@@ -8,21 +8,21 @@
 WPF：
 
 ```powershell
-dotnet add package AgenticUI.Wpf --version 0.2.0
-dotnet add package AgenticUI.Remote --version 0.2.0
+dotnet add package AgenticUI.Wpf --version 0.2.1
+dotnet add package AgenticUI.Remote --version 0.2.1
 ```
 
 WinForms：
 
 ```powershell
-dotnet add package AgenticUI.WinForms --version 0.2.0
-dotnet add package AgenticUI.Remote --version 0.2.0
+dotnet add package AgenticUI.WinForms --version 0.2.1
+dotnet add package AgenticUI.Remote --version 0.2.1
 ```
 
 只使用协议、注册表、日志和命令分发时安装：
 
 ```powershell
-dotnet add package AgenticUI.Core --version 0.2.0
+dotnet add package AgenticUI.Core --version 0.2.1
 ```
 
 ## 2. 为控件添加语义身份

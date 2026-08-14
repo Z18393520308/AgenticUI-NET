@@ -7,7 +7,7 @@
 AgenticUI.NET 是一套面向 AI Agent 的桌面 UI 协议、组件库和控件库。它让 WPF 与
 Windows Forms 应用中的控件可以被稳定识别、观察、高亮、记录和通过本机语义命令触发。
 
-> 当前稳定版为 `0.2.0`。网络远程控制默认不开放，只提供本机命名管道。
+> 当前稳定版为 `0.2.1`。网络远程控制默认不开放，只提供本机命名管道。
 
 ![AgenticUI.NET 语义控件与事件时间线演示](docs/images/agenticui-overview.png)
 
@@ -16,15 +16,15 @@ Windows Forms 应用中的控件可以被稳定识别、观察、高亮、记录
 WPF：
 
 ```powershell
-dotnet add package AgenticUI.Wpf --version 0.2.0
-dotnet add package AgenticUI.Remote --version 0.2.0
+dotnet add package AgenticUI.Wpf --version 0.2.1
+dotnet add package AgenticUI.Remote --version 0.2.1
 ```
 
 WinForms：
 
 ```powershell
-dotnet add package AgenticUI.WinForms --version 0.2.0
-dotnet add package AgenticUI.Remote --version 0.2.0
+dotnet add package AgenticUI.WinForms --version 0.2.1
+dotnet add package AgenticUI.Remote --version 0.2.1
 ```
 
 只使用协议、注册表、日志和命令分发时安装 `AgenticUI.Core`。完整步骤见
@@ -195,7 +195,7 @@ Workbench 和独立 Remote Console 都提供“选择下一项”按钮。
 
 ## NuGet 包
 
-`0.2.0` 提供四个包：
+`0.2.1` 提供四个包：
 
 - [`AgenticUI.Core`](https://www.nuget.org/packages/AgenticUI.Core)
 - [`AgenticUI.Remote`](https://www.nuget.org/packages/AgenticUI.Remote)
