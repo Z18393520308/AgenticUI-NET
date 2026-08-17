@@ -1,6 +1,8 @@
 using System.ComponentModel;
 using System.Collections;
 using System.Drawing;
+using System.Globalization;
+using System.Text.Json;
 using System.Windows.Forms;
 using AgenticUI;
 
@@ -13,6 +15,7 @@ internal sealed class WinFormsControlAdapter : IAgenticControl
     private readonly AgenticEventBus _events;
     private string? _registeredId;
     private WinFormsHighlight? _highlight;
+    private WinFormsHighlight? _cellHighlight;
     private bool _attached;
     private AgenticEventSource _activeSource = AgenticEventSource.User;
     private Dictionary<string, object?>? _lastCellState;
@@ -285,11 +288,41 @@ internal sealed class WinFormsControlAdapter : IAgenticControl
                 case AgenticActions.SelectRow when _control is DataGridView grid:
                     SelectGridRow(grid, ReadIndex(GetArgument(command, "row")));
                     break;
+                case AgenticActions.GetRow when _control is DataGridView grid:
+                    ReadGridRow(grid, command);
+                    break;
+                case AgenticActions.GetRows when _control is DataGridView grid:
+                    ReadGridRows(grid, command);
+                    break;
+                case AgenticActions.GetColumns when _control is DataGridView grid:
+                    ReadGridColumns(grid);
+                    break;
                 case AgenticActions.GetCell when _control is DataGridView grid:
                     ReadGridCell(grid, command);
                     break;
                 case AgenticActions.SetCell when _control is DataGridView grid:
                     WriteGridCell(grid, command);
+                    break;
+                case AgenticActions.ScrollToRow when _control is DataGridView grid:
+                    ScrollGridToRow(grid, ReadIndex(GetArgument(command, "row")));
+                    break;
+                case AgenticActions.AddRow when _control is DataGridView grid:
+                    AddGridRow(grid, command);
+                    break;
+                case AgenticActions.DeleteRow when _control is DataGridView grid:
+                    DeleteGridRow(grid, ReadIndex(GetArgument(command, "row")));
+                    break;
+                case AgenticActions.SortByColumn when _control is DataGridView grid:
+                    SortGridByColumn(grid, command);
+                    break;
+                case AgenticActions.FilterByColumn when _control is DataGridView grid:
+                    FilterGridByColumn(grid, command);
+                    break;
+                case AgenticActions.HighlightCell when _control is DataGridView grid:
+                    HighlightGridCell(grid, command);
+                    break;
+                case AgenticActions.SelectCell when _control is DataGridView grid:
+                    SelectGridCell(grid, command);
                     break;
                 case AgenticActions.SelectItem when _control is TreeView tree:
                     SelectTreeNode(tree, command);
@@ -581,8 +614,18 @@ internal sealed class WinFormsControlAdapter : IAgenticControl
         if (_control is DataGridView)
         {
             actions.Add(AgenticActions.SelectRow);
+            actions.Add(AgenticActions.GetRow);
+            actions.Add(AgenticActions.GetRows);
+            actions.Add(AgenticActions.GetColumns);
             actions.Add(AgenticActions.GetCell);
             actions.Add(AgenticActions.SetCell);
+            actions.Add(AgenticActions.ScrollToRow);
+            actions.Add(AgenticActions.AddRow);
+            actions.Add(AgenticActions.DeleteRow);
+            actions.Add(AgenticActions.SortByColumn);
+            actions.Add(AgenticActions.FilterByColumn);
+            actions.Add(AgenticActions.HighlightCell);
+            actions.Add(AgenticActions.SelectCell);
         }
         if (_control is TreeView)
         {
@@ -671,8 +714,9 @@ internal sealed class WinFormsControlAdapter : IAgenticControl
         }
         if (_control is DataGridView grid)
         {
-            state["selectedIndex"] = grid.CurrentRow?.Index ?? -1;
-            state["rowCount"] = grid.Rows.Cast<DataGridViewRow>().Count(row => !row.IsNewRow);
+            var rows = GetGridRows(grid);
+            state["selectedIndex"] = grid.CurrentRow is null ? -1 : rows.IndexOf(grid.CurrentRow);
+            state["rowCount"] = rows.Count;
             state["columnCount"] = grid.Columns.Count;
         }
         if (_lastCellState is not null)
@@ -711,6 +755,8 @@ internal sealed class WinFormsControlAdapter : IAgenticControl
     {
         _highlight?.Dispose();
         _highlight = null;
+        _cellHighlight?.Dispose();
+        _cellHighlight = null;
     }
 
     private static object? GetArgument(AgenticCommand command, string key) =>
@@ -852,29 +898,341 @@ internal sealed class WinFormsControlAdapter : IAgenticControl
 
     private static void SelectGridRow(DataGridView grid, int row)
     {
-        if (row < 0 || row >= grid.Rows.Count || grid.Rows[row].IsNewRow) throw new ArgumentOutOfRangeException(nameof(row));
+        var target = GetGridRow(grid, row);
         grid.ClearSelection();
-        grid.Rows[row].Selected = true;
-        if (grid.Columns.Count > 0) grid.CurrentCell = grid.Rows[row].Cells[0];
+        target.Selected = true;
+        if (grid.Columns.Count > 0) grid.CurrentCell = target.Cells[0];
+    }
+
+    private void ReadGridRow(DataGridView grid, AgenticCommand command)
+    {
+        var row = ReadIndex(GetArgument(command, "row"));
+        var target = GetGridRow(grid, row);
+        _lastCellState = new Dictionary<string, object?>
+        {
+            ["rowIndex"] = row,
+            ["row"] = CreateGridRowState(grid, target, row)
+        };
+    }
+
+    private void ReadGridRows(DataGridView grid, AgenticCommand command)
+    {
+        var start = ReadOptionalNonNegativeIndex(GetArgument(command, "start"), 0, "start");
+        var count = ReadOptionalNonNegativeIndex(GetArgument(command, "count"), 50, "count");
+        if (count > 500) throw new ArgumentOutOfRangeException(nameof(count), "getRows count cannot exceed 500.");
+        var dataRows = GetGridRows(grid);
+        var rows = dataRows.Skip(start).Take(count)
+            .Select((row, offset) => CreateGridRowState(grid, row, start + offset)).ToArray();
+        _lastCellState = new Dictionary<string, object?>
+        {
+            ["rows"] = rows,
+            ["start"] = start,
+            ["count"] = rows.Length,
+            ["total"] = dataRows.Count
+        };
+    }
+
+    private void ReadGridColumns(DataGridView grid)
+    {
+        _lastCellState = new Dictionary<string, object?>
+        {
+            ["columns"] = grid.Columns.Cast<DataGridViewColumn>().Select(column =>
+                new Dictionary<string, object?>
+                {
+                    ["index"] = column.Index,
+                    ["name"] = column.Name,
+                    ["header"] = column.HeaderText,
+                    ["dataProperty"] = column.DataPropertyName,
+                    ["valueType"] = column.ValueType?.FullName,
+                    ["readOnly"] = column.ReadOnly,
+                    ["visible"] = column.Visible,
+                    ["sortDirection"] = column.HeaderCell.SortGlyphDirection.ToString()
+                }).ToArray()
+        };
     }
 
     private void ReadGridCell(DataGridView grid, AgenticCommand command)
     {
         var row = ReadIndex(GetArgument(command, "row"));
         var column = ResolveGridColumn(grid, GetArgument(command, "column"));
-        var cell = grid.Rows[row].Cells[column];
+        var cell = GetGridRow(grid, row).Cells[column];
         grid.CurrentCell = cell;
-        _lastCellState = new Dictionary<string, object?> { ["text"] = cell.Value?.ToString(), ["cell"] = cell.Value };
+        _lastCellState = new Dictionary<string, object?>
+        {
+            ["rowIndex"] = row,
+            ["columnIndex"] = column,
+            ["text"] = cell.Value?.ToString(),
+            ["cell"] = cell.Value
+        };
     }
 
     private void WriteGridCell(DataGridView grid, AgenticCommand command)
     {
         var row = ReadIndex(GetArgument(command, "row"));
         var column = ResolveGridColumn(grid, GetArgument(command, "column"));
-        var cell = grid.Rows[row].Cells[column];
-        cell.Value = GetArgument(command, "value") ?? GetArgument(command, "text");
+        var cell = GetGridRow(grid, row).Cells[column];
+        var value = NormalizeJsonValue(GetArgument(command, "value") ?? GetArgument(command, "text"));
+        cell.Value = ConvertForType(value, cell.ValueType ?? grid.Columns[column].ValueType);
         grid.CurrentCell = cell;
-        _lastCellState = new Dictionary<string, object?> { ["text"] = cell.Value?.ToString(), ["cell"] = cell.Value };
+        _lastCellState = new Dictionary<string, object?>
+        {
+            ["rowIndex"] = row,
+            ["columnIndex"] = column,
+            ["text"] = cell.Value?.ToString(),
+            ["cell"] = cell.Value
+        };
+    }
+
+    private static void ScrollGridToRow(DataGridView grid, int row)
+    {
+        var target = GetGridRow(grid, row);
+        grid.FirstDisplayedScrollingRowIndex = target.Index;
+    }
+
+    private void AddGridRow(DataGridView grid, AgenticCommand command)
+    {
+        var values = ReadObjectArgument(GetArgument(command, "values"));
+        DataGridViewRow? addedRow;
+        if (grid.DataSource is BindingSource source)
+        {
+            var item = source.AddNew() ?? throw new InvalidOperationException("The bound data source could not create a row.");
+            ApplyObjectValues(item, values, grid);
+            source.EndEdit();
+            grid.Refresh();
+            addedRow = grid.Rows.Cast<DataGridViewRow>().FirstOrDefault(row => ReferenceEquals(row.DataBoundItem, item));
+        }
+        else if (grid.DataSource is null)
+        {
+            var sourceIndex = grid.Rows.Add();
+            addedRow = grid.Rows[sourceIndex];
+            foreach (var pair in values)
+            {
+                var column = ResolveGridColumn(grid, pair.Key);
+                var cell = addedRow.Cells[column];
+                cell.Value = ConvertForType(pair.Value, cell.ValueType ?? grid.Columns[column].ValueType);
+            }
+        }
+        else
+        {
+            throw new InvalidOperationException("addRow requires an unbound grid or a BindingSource data source.");
+        }
+
+        var rowIndex = addedRow is null ? -1 : GetGridRows(grid).IndexOf(addedRow);
+        if (rowIndex >= 0) SelectGridRow(grid, rowIndex);
+        _lastCellState = new Dictionary<string, object?>
+        {
+            ["rowIndex"] = rowIndex,
+            ["filteredOut"] = rowIndex < 0,
+            ["row"] = addedRow is null ? null : CreateGridRowState(grid, addedRow, rowIndex)
+        };
+    }
+
+    private static void DeleteGridRow(DataGridView grid, int row)
+    {
+        var target = GetGridRow(grid, row);
+        if (grid.DataSource is BindingSource source)
+        {
+            if (target.DataBoundItem is not null) source.Remove(target.DataBoundItem);
+            else source.RemoveAt(row);
+            return;
+        }
+        if (grid.DataSource is not null)
+            throw new InvalidOperationException("deleteRow requires an unbound grid or a BindingSource data source.");
+        grid.Rows.Remove(target);
+    }
+
+    private static void SortGridByColumn(DataGridView grid, AgenticCommand command)
+    {
+        var column = grid.Columns[ResolveGridColumn(grid, GetArgument(command, "column"))];
+        var directionText = GetArgument(command, "direction")?.ToString() ?? "ascending";
+        var direction = directionText.Equals("descending", StringComparison.OrdinalIgnoreCase) ||
+                        directionText.Equals("desc", StringComparison.OrdinalIgnoreCase)
+            ? ListSortDirection.Descending
+            : directionText.Equals("ascending", StringComparison.OrdinalIgnoreCase) ||
+              directionText.Equals("asc", StringComparison.OrdinalIgnoreCase)
+                ? ListSortDirection.Ascending
+                : throw new ArgumentException("direction must be 'ascending'/'asc' or 'descending'/'desc'.");
+        if (column.SortMode == DataGridViewColumnSortMode.NotSortable)
+            throw new InvalidOperationException($"Column '{column.HeaderText}' is not sortable.");
+        grid.Sort(column, direction);
+    }
+
+    private static void FilterGridByColumn(DataGridView grid, AgenticCommand command)
+    {
+        var column = grid.Columns[ResolveGridColumn(grid, GetArgument(command, "column"))];
+        var rawValue = NormalizeJsonValue(GetArgument(command, "value"));
+        var filter = rawValue?.ToString();
+        var mode = GetArgument(command, "mode")?.ToString() ?? "contains";
+        if (grid.DataSource is BindingSource source)
+        {
+            if (!source.SupportsFiltering)
+                throw new InvalidOperationException("The bound data source does not support filtering.");
+            if (string.IsNullOrEmpty(filter))
+            {
+                source.RemoveFilter();
+                return;
+            }
+            var property = string.IsNullOrWhiteSpace(column.DataPropertyName) ? column.Name : column.DataPropertyName;
+            var escaped = filter!.Replace("'", "''").Replace("[", "[[]").Replace("%", "[%]").Replace("*", "[*]");
+            source.Filter = mode.ToLowerInvariant() switch
+            {
+                "equals" => $"CONVERT([{property}], 'System.String') = '{escaped}'",
+                "startswith" => $"CONVERT([{property}], 'System.String') LIKE '{escaped}%'",
+                "contains" => $"CONVERT([{property}], 'System.String') LIKE '%{escaped}%'",
+                _ => throw new ArgumentException("mode must be 'contains', 'equals', or 'startsWith'.")
+            };
+            return;
+        }
+        if (grid.DataSource is not null)
+            throw new InvalidOperationException("filterByColumn requires an unbound grid or a filterable BindingSource.");
+        grid.ClearSelection();
+        grid.CurrentCell = null;
+        foreach (DataGridViewRow row in grid.Rows)
+        {
+            if (row.IsNewRow) continue;
+            var text = row.Cells[column.Index].Value?.ToString() ?? "";
+            row.Visible = string.IsNullOrEmpty(filter) || TextMatches(text, filter!, mode);
+        }
+    }
+
+    private void HighlightGridCell(DataGridView grid, AgenticCommand command)
+    {
+        var row = ReadIndex(GetArgument(command, "row"));
+        var column = ResolveGridColumn(grid, GetArgument(command, "column"));
+        var target = GetGridRow(grid, row);
+        ScrollGridToRow(grid, row);
+        _cellHighlight?.Dispose();
+        _cellHighlight = new WinFormsHighlight(
+            grid,
+            Options.InstructionNumber,
+            Options.Hint,
+            () =>
+            {
+                if (target.Index < 0) return Rectangle.Empty;
+                var bounds = grid.GetCellDisplayRectangle(column, target.Index, true);
+                return bounds.Width <= 0 || bounds.Height <= 0
+                    ? Rectangle.Empty
+                    : grid.RectangleToScreen(bounds);
+            });
+        _cellHighlight.Show();
+        _lastCellState = new Dictionary<string, object?> { ["rowIndex"] = row, ["columnIndex"] = column };
+    }
+
+    private void SelectGridCell(DataGridView grid, AgenticCommand command)
+    {
+        var row = ReadIndex(GetArgument(command, "row"));
+        var column = ResolveGridColumn(grid, GetArgument(command, "column"));
+        var target = GetGridRow(grid, row);
+        ScrollGridToRow(grid, row);
+        grid.ClearSelection();
+        var cell = target.Cells[column];
+        grid.CurrentCell = cell;
+        cell.Selected = true;
+        _lastCellState = new Dictionary<string, object?>
+        {
+            ["rowIndex"] = row,
+            ["columnIndex"] = column,
+            ["text"] = cell.Value?.ToString(),
+            ["cell"] = cell.Value
+        };
+    }
+
+    private static Dictionary<string, object?> CreateGridRowState(DataGridView grid, DataGridViewRow row, int viewIndex)
+    {
+        var result = new Dictionary<string, object?>
+        {
+            ["_index"] = viewIndex,
+            ["_sourceIndex"] = row.Index,
+            ["_visible"] = row.Visible
+        };
+        foreach (DataGridViewColumn column in grid.Columns)
+        {
+            var key = GetGridColumnKey(column);
+            if (result.ContainsKey(key)) key = column.Index.ToString(CultureInfo.InvariantCulture);
+            result[key] = row.Cells[column.Index].Value;
+        }
+        return result;
+    }
+
+    private static string GetGridColumnKey(DataGridViewColumn column) =>
+        !string.IsNullOrWhiteSpace(column.Name) ? column.Name :
+        !string.IsNullOrWhiteSpace(column.DataPropertyName) ? column.DataPropertyName :
+        !string.IsNullOrWhiteSpace(column.HeaderText) ? column.HeaderText :
+        column.Index.ToString(CultureInfo.InvariantCulture);
+
+    private static List<DataGridViewRow> GetGridRows(DataGridView grid) =>
+        grid.Rows.Cast<DataGridViewRow>().Where(row => !row.IsNewRow && row.Visible).ToList();
+
+    private static DataGridViewRow GetGridRow(DataGridView grid, int row)
+    {
+        var rows = GetGridRows(grid);
+        if (row < 0 || row >= rows.Count)
+            throw new ArgumentOutOfRangeException(nameof(row), $"Row '{row}' is out of range.");
+        return rows[row];
+    }
+
+    private static int ReadOptionalNonNegativeIndex(object? value, int defaultValue, string name)
+    {
+        if (value is null) return defaultValue;
+        if (int.TryParse(value.ToString(), out var parsed) && parsed >= 0) return parsed;
+        throw new ArgumentException($"'{name}' must be a non-negative integer.");
+    }
+
+    private static bool TextMatches(string text, string filter, string mode) => mode.ToLowerInvariant() switch
+    {
+        "equals" => string.Equals(text, filter, StringComparison.OrdinalIgnoreCase),
+        "startswith" => text.StartsWith(filter, StringComparison.OrdinalIgnoreCase),
+        "contains" => text.IndexOf(filter, StringComparison.OrdinalIgnoreCase) >= 0,
+        _ => throw new ArgumentException("mode must be 'contains', 'equals', or 'startsWith'.")
+    };
+
+    private static IReadOnlyDictionary<string, object?> ReadObjectArgument(object? value)
+    {
+        if (value is null) return new Dictionary<string, object?>();
+        if (value is IReadOnlyDictionary<string, object?> readOnly) return readOnly;
+        if (value is IDictionary<string, object?> dictionary) return new Dictionary<string, object?>(dictionary);
+        if (value is JsonElement { ValueKind: JsonValueKind.Object } json)
+            return json.EnumerateObject().ToDictionary(property => property.Name, property => NormalizeJsonValue(property.Value));
+        throw new ArgumentException("'values' must be a JSON object keyed by column name.");
+    }
+
+    private static object? NormalizeJsonValue(object? value)
+    {
+        if (value is not JsonElement json) return value;
+        return json.ValueKind switch
+        {
+            JsonValueKind.Null or JsonValueKind.Undefined => null,
+            JsonValueKind.String => json.GetString(),
+            JsonValueKind.True => true,
+            JsonValueKind.False => false,
+            JsonValueKind.Number when json.TryGetInt64(out var integer) => integer,
+            JsonValueKind.Number when json.TryGetDecimal(out var number) => number,
+            _ => json.ToString()
+        };
+    }
+
+    private static object? ConvertForType(object? value, Type? targetType)
+    {
+        value = NormalizeJsonValue(value);
+        if (value is null || targetType is null || targetType == typeof(object)) return value;
+        var effectiveType = Nullable.GetUnderlyingType(targetType) ?? targetType;
+        if (effectiveType.IsInstanceOfType(value)) return value;
+        if (effectiveType.IsEnum) return Enum.Parse(effectiveType, value.ToString()!, true);
+        if (effectiveType == typeof(Guid)) return Guid.Parse(value.ToString()!);
+        return Convert.ChangeType(value, effectiveType, CultureInfo.InvariantCulture);
+    }
+
+    private static void ApplyObjectValues(object item, IReadOnlyDictionary<string, object?> values, DataGridView grid)
+    {
+        foreach (var pair in values)
+        {
+            var column = grid.Columns[ResolveGridColumn(grid, pair.Key)];
+            var propertyName = string.IsNullOrWhiteSpace(column.DataPropertyName) ? pair.Key : column.DataPropertyName;
+            var property = item.GetType().GetProperty(propertyName, System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.IgnoreCase);
+            if (property is null || !property.CanWrite)
+                throw new InvalidOperationException($"Property '{propertyName}' cannot be written.");
+            property.SetValue(item, ConvertForType(pair.Value, property.PropertyType));
+        }
     }
 
     private static int ResolveGridColumn(DataGridView grid, object? value)

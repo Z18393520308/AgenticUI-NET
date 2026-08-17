@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- WPF `DataGrid` 与 WinForms `DataGridView` 新增行/列分页读取、滚动定位、增删行、
+  按列排序/过滤、单元格选择与单元格高亮等远程动作。
+
 ## 0.2.1
 
 - 远程 `listControls` 默认只返回当前可展示控件（活动页、滚动可视区、未被完全遮挡）；可用 `includeHidden:true` 枚举全量。

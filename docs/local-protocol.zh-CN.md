@@ -88,8 +88,18 @@
 {"controlId":"demo.volume","action":"setValue","arguments":{"value":40}}
 {"controlId":"demo.date","action":"setValue","arguments":{"value":"2026-08-01"}}
 {"controlId":"demo.grid","action":"selectRow","arguments":{"row":0}}
+{"controlId":"demo.grid","action":"getRow","arguments":{"row":0}}
+{"controlId":"demo.grid","action":"getRows","arguments":{"start":0,"count":50}}
+{"controlId":"demo.grid","action":"getColumns","arguments":{}}
 {"controlId":"demo.grid","action":"getCell","arguments":{"row":0,"column":"Name"}}
 {"controlId":"demo.grid","action":"setCell","arguments":{"row":0,"column":0,"text":"Alice"}}
+{"controlId":"demo.grid","action":"scrollToRow","arguments":{"row":20}}
+{"controlId":"demo.grid","action":"addRow","arguments":{"values":{"Name":"Alice","Score":95}}}
+{"controlId":"demo.grid","action":"deleteRow","arguments":{"row":2}}
+{"controlId":"demo.grid","action":"sortByColumn","arguments":{"column":"Score","direction":"descending"}}
+{"controlId":"demo.grid","action":"filterByColumn","arguments":{"column":"Name","value":"Alice","mode":"contains"}}
+{"controlId":"demo.grid","action":"highlightCell","arguments":{"row":0,"column":"Name"}}
+{"controlId":"demo.grid","action":"selectCell","arguments":{"row":0,"column":"Name"}}
 {"controlId":"demo.tree","action":"expand","arguments":{"path":"公司/研发"}}
 {"controlId":"demo.menu","action":"click","arguments":{"path":"文件/打开"}}
 ```
@@ -134,8 +144,18 @@
 - `getValue`
 - `selectItem`
 - `selectRow`
+- `getRow`
+- `getRows`
+- `getColumns`
 - `getCell`
 - `setCell`
+- `scrollToRow`
+- `addRow`
+- `deleteRow`
+- `sortByColumn`
+- `filterByColumn`
+- `highlightCell`
+- `selectCell`
 - `expand`
 - `collapse`
 - `openDropDown`
@@ -145,8 +165,30 @@
 下拉列表打开选项。显式设置状态仍应优先使用 `setText` / `setChecked` / `setValue`。
 `selectItem` 接受从零开始的 `index`，或者与项目显示文本匹配的 `value`；树节点还支持
 `path`（用 `/` 分隔，如 `公司/研发`）。
-`selectRow` / `getCell` / `setCell` 用于表格：`row` 为行号，`column` 为列号或列名，
-`setCell` 另需 `text`（或 `value`）。
+
+### 表格动作
+
+表格中的 `row` / `start` / `column` 数字索引都从 0 开始；`column` 也可使用列名、
+列标题或绑定属性名。`row` 始终指当前排序、过滤后视图中的行号。
+
+- `getRow` 返回 `state.row`；`getRows` 返回 `state.rows`，支持 `start` / `count` 分页。
+  `count` 默认 50，最大 500，响应同时包含 `start` / `count` / `total`。
+- `getColumns` 返回 `state.columns`，包含索引、名称、标题、绑定属性、
+  只读/可见状态和排序方向。
+- `selectRow` / `scrollToRow` 需要 `row`；`selectCell` / `highlightCell` 需要 `row` 和
+  `column`。`clearHighlight` 会同时清除整个控件和单元格高亮。
+- `getCell` / `setCell` 需要 `row` 和 `column`；`setCell` 另需 `text` 或 `value`。
+- `addRow` 的 `values` 是以列名为键的 JSON 对象；`deleteRow` 需要 `row`。
+  WinForms 支持未绑定表格或 `BindingSource`；WPF 需要可写、可推断行类型的
+  `IList` 数据源。
+- `sortByColumn` 需要 `column`，`direction` 可为 `ascending` / `descending`（也接受
+  `asc` / `desc`）。
+- `filterByColumn` 需要 `column` 和 `value`，`mode` 可为 `contains`、`equals` 或
+  `startsWith`；`value` 为空字符串或 `null` 时清除过滤。WinForms 绑定表格要求
+  `BindingSource` 的底层数据源支持过滤。
+
+WPF 的 `setCell` / `sortByColumn` / `filterByColumn` 要求目标列为可识别绑定路径的
+`DataGridBoundColumn`。不支持的数据源或只读属性会返回明确的失败原因。
 `expand` / `collapse` 用于树，参数同树的 `selectItem`。
 菜单与工具栏的 `click` 使用 `path`（如 `文件/打开`）或 `value`（项文本，忽略 `&`）。
 `CheckedListBox` 的 `setChecked` 需要同时提供 `index` 和 `checked`。

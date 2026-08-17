@@ -1,11 +1,16 @@
 using System.Collections;
+using System.ComponentModel;
+using System.Globalization;
 using System.Reflection;
+using System.Text.Json;
 using System.Windows;
 using System.Windows.Automation.Peers;
 using System.Windows.Automation.Provider;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
+using System.Windows.Data;
+using System.Windows.Media;
 using AgenticUI;
 
 namespace AgenticUI.Wpf;
@@ -17,9 +22,12 @@ internal sealed class WpfControlAdapter : IAgenticControl
     private readonly AgenticEventBus _events;
     private string? _registeredId;
     private WpfHighlight? _highlight;
+    private WpfHighlight? _cellHighlight;
     private bool _attached;
     private AgenticEventSource _activeSource = AgenticEventSource.User;
     private Dictionary<string, object?>? _lastCellState;
+    private Predicate<object>? _originalGridFilter;
+    private bool _hasAgenticGridFilter;
 
     public WpfControlAdapter(
         FrameworkElement element,
@@ -246,13 +254,43 @@ internal sealed class WpfControlAdapter : IAgenticControl
                     Select(selector, GetArgument(command, "index"), GetArgument(command, "value"));
                     break;
                 case AgenticActions.SelectRow when _element is DataGrid grid:
-                    grid.SelectedIndex = ReadIndex(GetArgument(command, "row"));
+                    SelectGridRow(grid, ReadIndex(GetArgument(command, "row")));
+                    break;
+                case AgenticActions.GetRow when _element is DataGrid grid:
+                    ReadGridRow(grid, command);
+                    break;
+                case AgenticActions.GetRows when _element is DataGrid grid:
+                    ReadGridRows(grid, command);
+                    break;
+                case AgenticActions.GetColumns when _element is DataGrid grid:
+                    ReadGridColumns(grid);
                     break;
                 case AgenticActions.GetCell when _element is DataGrid grid:
                     ReadGridCell(grid, command);
                     break;
                 case AgenticActions.SetCell when _element is DataGrid grid:
                     WriteGridCell(grid, command);
+                    break;
+                case AgenticActions.ScrollToRow when _element is DataGrid grid:
+                    ScrollGridToRow(grid, ReadIndex(GetArgument(command, "row")));
+                    break;
+                case AgenticActions.AddRow when _element is DataGrid grid:
+                    AddGridRow(grid, command);
+                    break;
+                case AgenticActions.DeleteRow when _element is DataGrid grid:
+                    DeleteGridRow(grid, ReadIndex(GetArgument(command, "row")));
+                    break;
+                case AgenticActions.SortByColumn when _element is DataGrid grid:
+                    SortGridByColumn(grid, command);
+                    break;
+                case AgenticActions.FilterByColumn when _element is DataGrid grid:
+                    FilterGridByColumn(grid, command);
+                    break;
+                case AgenticActions.HighlightCell when _element is DataGrid grid:
+                    HighlightGridCell(grid, command);
+                    break;
+                case AgenticActions.SelectCell when _element is DataGrid grid:
+                    SelectGridCell(grid, command);
                     break;
                 case AgenticActions.SelectItem when _element is TreeView tree:
                     FindTreeItem(tree, command).IsSelected = true;
@@ -522,8 +560,18 @@ internal sealed class WpfControlAdapter : IAgenticControl
         if (_element is DataGrid)
         {
             actions.Add(AgenticActions.SelectRow);
+            actions.Add(AgenticActions.GetRow);
+            actions.Add(AgenticActions.GetRows);
+            actions.Add(AgenticActions.GetColumns);
             actions.Add(AgenticActions.GetCell);
             actions.Add(AgenticActions.SetCell);
+            actions.Add(AgenticActions.ScrollToRow);
+            actions.Add(AgenticActions.AddRow);
+            actions.Add(AgenticActions.DeleteRow);
+            actions.Add(AgenticActions.SortByColumn);
+            actions.Add(AgenticActions.FilterByColumn);
+            actions.Add(AgenticActions.HighlightCell);
+            actions.Add(AgenticActions.SelectCell);
         }
         if (_element is TreeView)
         {
@@ -630,6 +678,8 @@ internal sealed class WpfControlAdapter : IAgenticControl
     {
         _highlight?.Dispose();
         _highlight = null;
+        _cellHighlight?.Dispose();
+        _cellHighlight = null;
     }
 
     private static object? GetArgument(AgenticCommand command, string key) =>
@@ -683,38 +733,287 @@ internal sealed class WpfControlAdapter : IAgenticControl
         throw new ArgumentException("Action requires an index argument.");
     }
 
+    private static void SelectGridRow(DataGrid grid, int row)
+    {
+        var item = GetGridItem(grid, row);
+        grid.SelectedItem = item;
+        grid.ScrollIntoView(item);
+    }
+
+    private void ReadGridRow(DataGrid grid, AgenticCommand command)
+    {
+        var row = ReadIndex(GetArgument(command, "row"));
+        var item = GetGridItem(grid, row);
+        _lastCellState = new Dictionary<string, object?>
+        {
+            ["rowIndex"] = row,
+            ["row"] = CreateGridRowState(grid, item, row)
+        };
+    }
+
+    private void ReadGridRows(DataGrid grid, AgenticCommand command)
+    {
+        var start = ReadOptionalNonNegativeIndex(GetArgument(command, "start"), 0, "start");
+        var count = ReadOptionalNonNegativeIndex(GetArgument(command, "count"), 50, "count");
+        if (count > 500) throw new ArgumentOutOfRangeException(nameof(count), "getRows count cannot exceed 500.");
+        var items = GetGridItems(grid);
+        var rows = items.Skip(start).Take(count)
+            .Select((item, offset) => CreateGridRowState(grid, item, start + offset)).ToArray();
+        _lastCellState = new Dictionary<string, object?>
+        {
+            ["rows"] = rows,
+            ["start"] = start,
+            ["count"] = rows.Length,
+            ["total"] = items.Count
+        };
+    }
+
+    private void ReadGridColumns(DataGrid grid)
+    {
+        _lastCellState = new Dictionary<string, object?>
+        {
+            ["columns"] = grid.Columns.Select((column, index) =>
+                new Dictionary<string, object?>
+                {
+                    ["index"] = index,
+                    ["name"] = GetBindingPath(column) ?? column.Header?.ToString() ?? index.ToString(CultureInfo.InvariantCulture),
+                    ["header"] = column.Header?.ToString(),
+                    ["bindingPath"] = GetBindingPath(column),
+                    ["readOnly"] = column.IsReadOnly,
+                    ["visible"] = column.Visibility == Visibility.Visible,
+                    ["sortDirection"] = column.SortDirection?.ToString()
+                }).ToArray()
+        };
+    }
+
     private void ReadGridCell(DataGrid grid, AgenticCommand command)
     {
         var row = ReadIndex(GetArgument(command, "row"));
         var column = ResolveGridColumn(grid, GetArgument(command, "column"));
-        if (row < 0 || row >= grid.Items.Count) throw new ArgumentOutOfRangeException(nameof(row));
-        var item = grid.Items[row];
-        grid.SelectedIndex = row;
-        var content = grid.Columns[column].GetCellContent(item);
-        var value = content switch
+        var item = GetGridItem(grid, row);
+        grid.SelectedItem = item;
+        var value = ReadGridValue(grid, grid.Columns[column], item);
+        _lastCellState = new Dictionary<string, object?>
         {
-            TextBlock text => text.Text,
-            ContentControl control => control.Content?.ToString(),
-            _ => ReadBoundProperty(grid.Columns[column], item)
+            ["rowIndex"] = row,
+            ["columnIndex"] = column,
+            ["text"] = value?.ToString(),
+            ["cell"] = value
         };
-        _lastCellState = new Dictionary<string, object?> { ["text"] = value, ["cell"] = value };
     }
 
     private void WriteGridCell(DataGrid grid, AgenticCommand command)
     {
         var row = ReadIndex(GetArgument(command, "row"));
         var column = ResolveGridColumn(grid, GetArgument(command, "column"));
-        if (row < 0 || row >= grid.Items.Count) throw new ArgumentOutOfRangeException(nameof(row));
-        var item = grid.Items[row];
+        var item = GetGridItem(grid, row);
         var property = GetBindingPath(grid.Columns[column]);
         if (string.IsNullOrWhiteSpace(property)) throw new InvalidOperationException("setCell requires a bound DataGrid column.");
-        var member = item.GetType().GetProperty(property, BindingFlags.Instance | BindingFlags.Public);
+        var member = item.GetType().GetProperty(property, BindingFlags.Instance | BindingFlags.Public | BindingFlags.IgnoreCase);
         if (member is null || !member.CanWrite) throw new InvalidOperationException($"Property '{property}' cannot be written.");
-        var value = GetArgument(command, "value") ?? GetArgument(command, "text") ?? "";
-        member.SetValue(item, Convert.ChangeType(value, Nullable.GetUnderlyingType(member.PropertyType) ?? member.PropertyType));
+        var value = NormalizeJsonValue(GetArgument(command, "value") ?? GetArgument(command, "text") ?? "");
+        member.SetValue(item, ConvertForType(value, member.PropertyType));
         grid.Items.Refresh();
-        grid.SelectedIndex = row;
-        _lastCellState = new Dictionary<string, object?> { ["text"] = value.ToString(), ["cell"] = value };
+        grid.SelectedItem = item;
+        var updated = member.GetValue(item);
+        _lastCellState = new Dictionary<string, object?>
+        {
+            ["rowIndex"] = row,
+            ["columnIndex"] = column,
+            ["text"] = updated?.ToString(),
+            ["cell"] = updated
+        };
+    }
+
+    private static void ScrollGridToRow(DataGrid grid, int row)
+    {
+        var item = GetGridItem(grid, row);
+        grid.ScrollIntoView(item);
+        grid.UpdateLayout();
+    }
+
+    private void AddGridRow(DataGrid grid, AgenticCommand command)
+    {
+        var values = ReadObjectArgument(GetArgument(command, "values"));
+        var existingItems = GetGridItems(grid);
+        var itemType = GetCollectionItemType(grid.ItemsSource?.GetType()) ?? existingItems.FirstOrDefault()?.GetType();
+        if (itemType is null || itemType == typeof(object))
+            throw new InvalidOperationException("addRow could not infer the row type. Use a typed, writable ItemsSource.");
+        var item = Activator.CreateInstance(itemType) ?? throw new InvalidOperationException($"Could not create row type '{itemType.FullName}'.");
+        ApplyObjectValues(item, values, grid);
+        if (grid.ItemsSource is IList source)
+        {
+            if (source.IsReadOnly || source.IsFixedSize)
+                throw new InvalidOperationException("The DataGrid ItemsSource is read-only.");
+            source.Add(item);
+        }
+        else if (grid.ItemsSource is null)
+        {
+            grid.Items.Add(item);
+        }
+        else
+        {
+            throw new InvalidOperationException("addRow requires an ItemsSource implementing IList.");
+        }
+        CollectionViewSource.GetDefaultView(grid.ItemsSource ?? grid.Items)?.Refresh();
+        var rowIndex = GetGridItems(grid).IndexOf(item);
+        grid.SelectedItem = item;
+        _lastCellState = new Dictionary<string, object?>
+        {
+            ["rowIndex"] = rowIndex,
+            ["row"] = CreateGridRowState(grid, item, rowIndex)
+        };
+    }
+
+    private static void DeleteGridRow(DataGrid grid, int row)
+    {
+        var item = GetGridItem(grid, row);
+        if (grid.ItemsSource is IList source)
+        {
+            if (source.IsReadOnly || source.IsFixedSize)
+                throw new InvalidOperationException("The DataGrid ItemsSource is read-only.");
+            source.Remove(item);
+        }
+        else if (grid.ItemsSource is null)
+        {
+            grid.Items.Remove(item);
+        }
+        else
+        {
+            throw new InvalidOperationException("deleteRow requires an ItemsSource implementing IList.");
+        }
+        CollectionViewSource.GetDefaultView(grid.ItemsSource ?? grid.Items).Refresh();
+    }
+
+    private static void SortGridByColumn(DataGrid grid, AgenticCommand command)
+    {
+        var column = grid.Columns[ResolveGridColumn(grid, GetArgument(command, "column"))];
+        var property = GetBindingPath(column);
+        if (string.IsNullOrWhiteSpace(property))
+            throw new InvalidOperationException("sortByColumn requires a bound DataGrid column.");
+        var directionText = GetArgument(command, "direction")?.ToString() ?? "ascending";
+        var direction = directionText.Equals("descending", StringComparison.OrdinalIgnoreCase) ||
+                        directionText.Equals("desc", StringComparison.OrdinalIgnoreCase)
+            ? ListSortDirection.Descending
+            : directionText.Equals("ascending", StringComparison.OrdinalIgnoreCase) ||
+              directionText.Equals("asc", StringComparison.OrdinalIgnoreCase)
+                ? ListSortDirection.Ascending
+                : throw new ArgumentException("direction must be 'ascending'/'asc' or 'descending'/'desc'.");
+        var view = CollectionViewSource.GetDefaultView(grid.ItemsSource ?? grid.Items);
+        if (!view.CanSort) throw new InvalidOperationException("The DataGrid view does not support sorting.");
+        using (view.DeferRefresh())
+        {
+            view.SortDescriptions.Clear();
+            view.SortDescriptions.Add(new SortDescription(property!, direction));
+        }
+        column.SortDirection = direction;
+    }
+
+    private void FilterGridByColumn(DataGrid grid, AgenticCommand command)
+    {
+        var column = grid.Columns[ResolveGridColumn(grid, GetArgument(command, "column"))];
+        var property = GetBindingPath(column);
+        if (string.IsNullOrWhiteSpace(property))
+            throw new InvalidOperationException("filterByColumn requires a bound DataGrid column.");
+        var view = CollectionViewSource.GetDefaultView(grid.ItemsSource ?? grid.Items);
+        if (!view.CanFilter) throw new InvalidOperationException("The DataGrid view does not support filtering.");
+        var filter = NormalizeJsonValue(GetArgument(command, "value"))?.ToString();
+        var mode = GetArgument(command, "mode")?.ToString() ?? "contains";
+        if (!_hasAgenticGridFilter)
+        {
+            _originalGridFilter = view.Filter;
+            _hasAgenticGridFilter = true;
+        }
+        if (string.IsNullOrEmpty(filter))
+        {
+            view.Filter = _originalGridFilter;
+            _originalGridFilter = null;
+            _hasAgenticGridFilter = false;
+            return;
+        }
+        var original = _originalGridFilter;
+        view.Filter = item => (original?.Invoke(item) ?? true) &&
+                              TextMatches(ReadBoundPropertyValue(column, item)?.ToString() ?? "", filter!, mode);
+    }
+
+    private void HighlightGridCell(DataGrid grid, AgenticCommand command)
+    {
+        var row = ReadIndex(GetArgument(command, "row"));
+        var column = ResolveGridColumn(grid, GetArgument(command, "column"));
+        var cell = GetGridCell(grid, row, column);
+        _cellHighlight?.Dispose();
+        _cellHighlight = new WpfHighlight(cell, AgenticProperties.GetInstructionNumber(_element), AgenticProperties.GetHint(_element));
+        _cellHighlight.Show();
+        _lastCellState = new Dictionary<string, object?> { ["rowIndex"] = row, ["columnIndex"] = column };
+    }
+
+    private void SelectGridCell(DataGrid grid, AgenticCommand command)
+    {
+        var row = ReadIndex(GetArgument(command, "row"));
+        var column = ResolveGridColumn(grid, GetArgument(command, "column"));
+        var item = GetGridItem(grid, row);
+        ScrollGridToRow(grid, row);
+        grid.SelectedCells.Clear();
+        grid.SelectedItem = item;
+        grid.CurrentCell = new DataGridCellInfo(item, grid.Columns[column]);
+        grid.SelectedCells.Add(grid.CurrentCell);
+        var value = ReadGridValue(grid, grid.Columns[column], item);
+        _lastCellState = new Dictionary<string, object?>
+        {
+            ["rowIndex"] = row,
+            ["columnIndex"] = column,
+            ["text"] = value?.ToString(),
+            ["cell"] = value
+        };
+    }
+
+    private static DataGridCell GetGridCell(DataGrid grid, int row, int column)
+    {
+        var item = GetGridItem(grid, row);
+        grid.ScrollIntoView(item, grid.Columns[column]);
+        grid.UpdateLayout();
+        var content = grid.Columns[column].GetCellContent(item)
+            ?? throw new InvalidOperationException($"Cell ({row}, {column}) could not be realized.");
+        for (DependencyObject? current = content; current is not null; current = VisualTreeHelper.GetParent(current))
+            if (current is DataGridCell cell) return cell;
+        throw new InvalidOperationException($"Cell ({row}, {column}) could not be located.");
+    }
+
+    private static List<object> GetGridItems(DataGrid grid) =>
+        grid.Items.Cast<object>().Where(item => item != CollectionView.NewItemPlaceholder).ToList();
+
+    private static object GetGridItem(DataGrid grid, int row)
+    {
+        var items = GetGridItems(grid);
+        if (row < 0 || row >= items.Count)
+            throw new ArgumentOutOfRangeException(nameof(row), $"Row '{row}' is out of range.");
+        return items[row];
+    }
+
+    private static Dictionary<string, object?> CreateGridRowState(DataGrid grid, object item, int row)
+    {
+        var result = new Dictionary<string, object?> { ["_index"] = row };
+        for (var columnIndex = 0; columnIndex < grid.Columns.Count; columnIndex++)
+        {
+            var column = grid.Columns[columnIndex];
+            var key = GetBindingPath(column) ?? column.Header?.ToString() ?? columnIndex.ToString(CultureInfo.InvariantCulture);
+            if (result.ContainsKey(key)) key = columnIndex.ToString(CultureInfo.InvariantCulture);
+            result[key] = ReadGridValue(grid, column, item);
+        }
+        return result;
+    }
+
+    private static object? ReadGridValue(DataGrid grid, DataGridColumn column, object item)
+    {
+        var bound = ReadBoundPropertyValue(column, item);
+        if (bound is not null) return bound;
+        var content = column.GetCellContent(item);
+        return content switch
+        {
+            TextBlock text => text.Text,
+            ContentControl control => control.Content,
+            _ => null
+        };
     }
 
     private static int ResolveGridColumn(DataGrid grid, object? value)
@@ -726,14 +1025,88 @@ internal sealed class WpfControlAdapter : IAgenticControl
         return column is null ? throw new ArgumentOutOfRangeException(nameof(value), $"Column '{value}' was not found.") : grid.Columns.IndexOf(column);
     }
 
-    private static string? ReadBoundProperty(DataGridColumn column, object item)
+    private static object? ReadBoundPropertyValue(DataGridColumn column, object item)
     {
         var path = GetBindingPath(column);
-        return path is null ? null : item.GetType().GetProperty(path)?.GetValue(item)?.ToString();
+        return path is null ? null : item.GetType().GetProperty(path, BindingFlags.Instance | BindingFlags.Public | BindingFlags.IgnoreCase)?.GetValue(item);
     }
 
     private static string? GetBindingPath(DataGridColumn column) =>
         column is DataGridBoundColumn { Binding: System.Windows.Data.Binding binding } ? binding.Path?.Path : null;
+
+    private static int ReadOptionalNonNegativeIndex(object? value, int defaultValue, string name)
+    {
+        if (value is null) return defaultValue;
+        if (int.TryParse(value.ToString(), out var parsed) && parsed >= 0) return parsed;
+        throw new ArgumentException($"'{name}' must be a non-negative integer.");
+    }
+
+    private static bool TextMatches(string text, string filter, string mode) => mode.ToLowerInvariant() switch
+    {
+        "equals" => string.Equals(text, filter, StringComparison.OrdinalIgnoreCase),
+        "startswith" => text.StartsWith(filter, StringComparison.OrdinalIgnoreCase),
+        "contains" => text.IndexOf(filter, StringComparison.OrdinalIgnoreCase) >= 0,
+        _ => throw new ArgumentException("mode must be 'contains', 'equals', or 'startsWith'.")
+    };
+
+    private static IReadOnlyDictionary<string, object?> ReadObjectArgument(object? value)
+    {
+        if (value is null) return new Dictionary<string, object?>();
+        if (value is IReadOnlyDictionary<string, object?> readOnly) return readOnly;
+        if (value is IDictionary<string, object?> dictionary) return new Dictionary<string, object?>(dictionary);
+        if (value is JsonElement { ValueKind: JsonValueKind.Object } json)
+            return json.EnumerateObject().ToDictionary(property => property.Name, property => NormalizeJsonValue(property.Value));
+        throw new ArgumentException("'values' must be a JSON object keyed by column name.");
+    }
+
+    private static object? NormalizeJsonValue(object? value)
+    {
+        if (value is not JsonElement json) return value;
+        return json.ValueKind switch
+        {
+            JsonValueKind.Null or JsonValueKind.Undefined => null,
+            JsonValueKind.String => json.GetString(),
+            JsonValueKind.True => true,
+            JsonValueKind.False => false,
+            JsonValueKind.Number when json.TryGetInt64(out var integer) => integer,
+            JsonValueKind.Number when json.TryGetDecimal(out var number) => number,
+            _ => json.ToString()
+        };
+    }
+
+    private static object? ConvertForType(object? value, Type targetType)
+    {
+        value = NormalizeJsonValue(value);
+        if (value is null) return null;
+        var effectiveType = Nullable.GetUnderlyingType(targetType) ?? targetType;
+        if (effectiveType.IsInstanceOfType(value)) return value;
+        if (effectiveType.IsEnum) return Enum.Parse(effectiveType, value.ToString()!, true);
+        if (effectiveType == typeof(Guid)) return Guid.Parse(value.ToString()!);
+        return Convert.ChangeType(value, effectiveType, CultureInfo.InvariantCulture);
+    }
+
+    private static Type? GetCollectionItemType(Type? collectionType)
+    {
+        if (collectionType is null) return null;
+        if (collectionType.IsGenericType && collectionType.GetGenericArguments().Length == 1)
+            return collectionType.GetGenericArguments()[0];
+        return collectionType.GetInterfaces()
+            .FirstOrDefault(type => type.IsGenericType && type.GetGenericTypeDefinition() == typeof(IList<>))
+            ?.GetGenericArguments()[0];
+    }
+
+    private static void ApplyObjectValues(object item, IReadOnlyDictionary<string, object?> values, DataGrid grid)
+    {
+        foreach (var pair in values)
+        {
+            var column = grid.Columns[ResolveGridColumn(grid, pair.Key)];
+            var propertyName = GetBindingPath(column) ?? pair.Key;
+            var property = item.GetType().GetProperty(propertyName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.IgnoreCase);
+            if (property is null || !property.CanWrite)
+                throw new InvalidOperationException($"Property '{propertyName}' cannot be written.");
+            property.SetValue(item, ConvertForType(pair.Value, property.PropertyType));
+        }
+    }
 
     private static TreeViewItem FindTreeItem(TreeView tree, AgenticCommand command)
     {

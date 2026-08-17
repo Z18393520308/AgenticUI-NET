@@ -10,15 +10,26 @@ internal sealed class WinFormsHighlight : IDisposable
     private readonly Control _control;
     private readonly int _number;
     private readonly string? _hint;
+    private readonly Func<Rectangle>? _screenBoundsProvider;
     private readonly List<Control> _trackedContainers = new();
     private HighlightOverlayForm? _overlay;
     private Form? _ownerForm;
 
     public WinFormsHighlight(Control control, int number, string? hint)
+        : this(control, number, hint, null)
+    {
+    }
+
+    public WinFormsHighlight(
+        Control control,
+        int number,
+        string? hint,
+        Func<Rectangle>? screenBoundsProvider)
     {
         _control = control;
         _number = number;
         _hint = hint;
+        _screenBoundsProvider = screenBoundsProvider;
     }
 
     public void Show()
@@ -44,6 +55,12 @@ internal sealed class WinFormsHighlight : IDisposable
         _control.LocationChanged += OnLayoutChanged;
         _control.SizeChanged += OnLayoutChanged;
         _control.VisibleChanged += OnLayoutChanged;
+        if (_control is DataGridView grid)
+        {
+            grid.Scroll += OnGridScroll;
+            grid.ColumnWidthChanged += OnGridColumnWidthChanged;
+            grid.RowHeightChanged += OnGridRowHeightChanged;
+        }
         _ownerForm.LocationChanged += OnLayoutChanged;
         _ownerForm.SizeChanged += OnLayoutChanged;
         TrackContainers();
@@ -55,6 +72,12 @@ internal sealed class WinFormsHighlight : IDisposable
         _control.LocationChanged -= OnLayoutChanged;
         _control.SizeChanged -= OnLayoutChanged;
         _control.VisibleChanged -= OnLayoutChanged;
+        if (_control is DataGridView grid)
+        {
+            grid.Scroll -= OnGridScroll;
+            grid.ColumnWidthChanged -= OnGridColumnWidthChanged;
+            grid.RowHeightChanged -= OnGridRowHeightChanged;
+        }
         if (_ownerForm is not null)
         {
             _ownerForm.LocationChanged -= OnLayoutChanged;
@@ -95,6 +118,9 @@ internal sealed class WinFormsHighlight : IDisposable
 
     private void OnLayoutChanged(object? sender, EventArgs args) => UpdateOverlay();
     private void OnContainerLayout(object? sender, LayoutEventArgs args) => UpdateOverlay();
+    private void OnGridScroll(object? sender, ScrollEventArgs args) => UpdateOverlay();
+    private void OnGridColumnWidthChanged(object? sender, DataGridViewColumnEventArgs args) => UpdateOverlay();
+    private void OnGridRowHeightChanged(object? sender, DataGridViewRowEventArgs args) => UpdateOverlay();
 
     private void UpdateOverlay()
     {
@@ -108,7 +134,13 @@ internal sealed class WinFormsHighlight : IDisposable
             return;
         }
 
-        var screenBounds = _control.RectangleToScreen(_control.ClientRectangle);
+        var screenBounds = _screenBoundsProvider?.Invoke() ??
+                           _control.RectangleToScreen(_control.ClientRectangle);
+        if (screenBounds.Width <= 0 || screenBounds.Height <= 0)
+        {
+            _overlay.Visible = false;
+            return;
+        }
         _overlay.UpdateTarget(screenBounds, _control.DeviceDpi);
         _overlay.Visible = true;
         _overlay.TopMost = true;
