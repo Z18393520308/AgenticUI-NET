@@ -9,12 +9,12 @@
 
 - 项目名称：`AgenticUI.NET`
 - GitHub：<https://github.com/Z18393520308/AgenticUI-NET>
-- 当前稳定版：`0.2.1`
+- 当前稳定版：`0.3.0`
 - 当前默认分支：`main`
 - 技术栈：C#、WPF、Windows Forms、Named Pipe、JSONL
 - 目标框架：`.NET 8`、`.NET Framework 4.8`
 - 开源许可证：`AGPL-3.0-only`，另提供商业许可路径
-- 发布状态：四个 `0.2.1` NuGet 包、GitHub Release 和官网均已发布
+- 发布状态：四个 `0.3.0` NuGet 包、GitHub Release 和官网均已发布
 
 项目不是普通的主题或皮肤控件库。它的核心目标是让 AI Agent 能够：
 
@@ -84,6 +84,8 @@
 - 请求 ID、并发请求匹配、独立事件接收循环。
 - WinForms / WPF Workbench 示例。
 - WinForms / WPF Remote Console。
+- WPF `DataGrid` / WinForms `DataGridView` 的行列分页读取、单元格读写、
+  增删行、排序过滤、滚动定位、选择和单元格高亮。
 - GitHub Actions Windows 构建、测试和打包。
 - 四个 NuGet 预览包和符号包的打包配置。
 

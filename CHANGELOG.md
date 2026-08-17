@@ -1,9 +1,14 @@
 # Changelog
 
-## Unreleased
+## 0.3.0
 
 - WPF `DataGrid` 与 WinForms `DataGridView` 新增行/列分页读取、滚动定位、增删行、
   按列排序/过滤、单元格选择与单元格高亮等远程动作。
+- 新增 `getRow` / `getRows` / `getColumns`，其中 `getRows` 默认返回 50 行、
+  最多返回 500 行，便于 AI 分页读取大型表格并控制 Token 消耗。
+- 表格行号统一按当前排序、过滤后的可见视图计算；列可使用索引、
+  列名、列标题或绑定属性定位。
+- 新增 WinForms DataGrid 扩展动作测试，协议文档同步补充全部参数和返回状态。
 
 ## 0.2.1
 

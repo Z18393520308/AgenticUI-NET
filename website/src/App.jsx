@@ -45,10 +45,10 @@ const integrations = [
     code: [
       ["comment", "# WPF\n"],
       ["plain", "dotnet add package "], ["keyword", "AgenticUI.Wpf"],
-      ["plain", " --version "], ["value", "0.2.1"],
+      ["plain", " --version "], ["value", "0.3.0"],
       ["comment", "\n\n# WinForms\n"],
       ["plain", "dotnet add package "], ["keyword", "AgenticUI.WinForms"],
-      ["plain", " --version "], ["value", "0.2.1"],
+      ["plain", " --version "], ["value", "0.3.0"],
     ],
   },
   {
@@ -342,7 +342,7 @@ export function App() {
             <p className="eyebrow">WPF + WINFORMS</p>
             <h2>从基础输入到中型数据控件</h2>
           </div>
-          <p>统一的控件描述、动作与状态模型，同时支持替换式控件和原生控件绑定。</p>
+          <p>统一的控件描述、动作与状态模型；DataGrid 支持分页读取、增删行、排序过滤和单元格高亮。</p>
           <div className="component-list" aria-label="已支持的控件">
             {[
               "Button", "TextBox", "ComboBox", "CheckBox", "RadioButton",

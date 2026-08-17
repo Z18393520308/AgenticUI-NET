@@ -7,7 +7,7 @@
 AgenticUI.NET 是一套面向 AI Agent 的桌面 UI 协议、组件库和控件库。它让 WPF 与
 Windows Forms 应用中的控件可以被稳定识别、观察、高亮、记录和通过本机语义命令触发。
 
-> 当前稳定版为 `0.2.1`。网络远程控制默认不开放，只提供本机命名管道。
+> 当前稳定版为 `0.3.0`。网络远程控制默认不开放，只提供本机命名管道。
 
 ![AgenticUI.NET 语义控件与事件时间线演示](docs/images/agenticui-overview.png)
 
@@ -16,15 +16,15 @@ Windows Forms 应用中的控件可以被稳定识别、观察、高亮、记录
 WPF：
 
 ```powershell
-dotnet add package AgenticUI.Wpf --version 0.2.1
-dotnet add package AgenticUI.Remote --version 0.2.1
+dotnet add package AgenticUI.Wpf --version 0.3.0
+dotnet add package AgenticUI.Remote --version 0.3.0
 ```
 
 WinForms：
 
 ```powershell
-dotnet add package AgenticUI.WinForms --version 0.2.1
-dotnet add package AgenticUI.Remote --version 0.2.1
+dotnet add package AgenticUI.WinForms --version 0.3.0
+dotnet add package AgenticUI.Remote --version 0.3.0
 ```
 
 只使用协议、注册表、日志和命令分发时安装 `AgenticUI.Core`。完整步骤见
@@ -37,6 +37,7 @@ dotnet add package AgenticUI.Remote --version 0.2.1
 - WPF 与 WinForms 的替换式控件
 - 无需替换原生控件的附加属性/Binder 接入
 - 按钮、输入框、单选框、复选框和下拉列表
+- DataGrid 行列读取、单元格读写、增删行、排序过滤、滚动和单元格高亮
 - 控件描边、步骤编号和提示气泡
 - 语义事件广播；详细模式可包含按下、松开和焦点事件
 - 本地 JSONL 审计日志，敏感文本默认脱敏且可配置
@@ -193,9 +194,31 @@ await client.ExecuteAsync(new AgenticCommand
 也可以使用 `CloseDropDown` 关闭列表。对下拉列表执行 `Click` 的语义同样是打开列表。
 Workbench 和独立 Remote Console 都提供“选择下一项”按钮。
 
+DataGrid 可以分页读取当前视图、排序过滤并定位到具体单元格：
+
+```csharp
+var rows = await client.ExecuteAsync(new AgenticCommand
+{
+    ControlId = "orders.grid",
+    Action = AgenticActions.GetRows,
+    Arguments = { ["start"] = 0, ["count"] = 50 }
+});
+
+await client.ExecuteAsync(new AgenticCommand
+{
+    ControlId = "orders.grid",
+    Action = AgenticActions.HighlightCell,
+    Arguments = { ["row"] = 0, ["column"] = "OrderNumber" }
+});
+```
+
+表格还支持 `GetRow`、`GetColumns`、`ScrollToRow`、`AddRow`、`DeleteRow`、
+`SortByColumn`、`FilterByColumn` 和 `SelectCell`。完整参数见
+[本机协议](docs/local-protocol.zh-CN.md#表格动作)。
+
 ## NuGet 包
 
-`0.2.1` 提供四个包：
+`0.3.0` 提供四个包：
 
 - [`AgenticUI.Core`](https://www.nuget.org/packages/AgenticUI.Core)
 - [`AgenticUI.Remote`](https://www.nuget.org/packages/AgenticUI.Remote)

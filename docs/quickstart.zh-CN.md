@@ -1,6 +1,6 @@
 # AgenticUI.NET 快速开始
 
-本指南以 `0.2.1` 为例。WPF 和 WinForms 应用均可使用 .NET 8；组件库同时兼容
+本指南以 `0.3.0` 为例。WPF 和 WinForms 应用均可使用 .NET 8；组件库同时兼容
 .NET Framework 4.8。
 
 ## 1. 安装包
@@ -8,21 +8,21 @@
 WPF：
 
 ```powershell
-dotnet add package AgenticUI.Wpf --version 0.2.1
-dotnet add package AgenticUI.Remote --version 0.2.1
+dotnet add package AgenticUI.Wpf --version 0.3.0
+dotnet add package AgenticUI.Remote --version 0.3.0
 ```
 
 WinForms：
 
 ```powershell
-dotnet add package AgenticUI.WinForms --version 0.2.1
-dotnet add package AgenticUI.Remote --version 0.2.1
+dotnet add package AgenticUI.WinForms --version 0.3.0
+dotnet add package AgenticUI.Remote --version 0.3.0
 ```
 
 只使用协议、注册表、日志和命令分发时安装：
 
 ```powershell
-dotnet add package AgenticUI.Core --version 0.2.1
+dotnet add package AgenticUI.Core --version 0.3.0
 ```
 
 ## 2. 为控件添加语义身份
@@ -90,6 +90,27 @@ var result = await client.ExecuteAsync(new AgenticCommand
 
 下拉列表可以使用 `OpenDropDown`、`CloseDropDown` 和 `SelectItem`。文本框可以使用
 `SetText`；各类值控件可以使用 `SetValue` 和 `GetValue`。
+
+DataGrid 分页读取和单元格高亮：
+
+```csharp
+var rows = await client.ExecuteAsync(new AgenticCommand
+{
+    ControlId = "orders.grid",
+    Action = AgenticActions.GetRows,
+    Arguments = { ["start"] = 0, ["count"] = 50 }
+});
+
+await client.ExecuteAsync(new AgenticCommand
+{
+    ControlId = "orders.grid",
+    Action = AgenticActions.HighlightCell,
+    Arguments = { ["row"] = 0, ["column"] = "OrderNumber" }
+});
+```
+
+`row` 使用当前排序、过滤后的视图行号。完整表格动作和参数见
+[本机协议](local-protocol.zh-CN.md#表格动作)。
 
 ## 5. 开启本地审计
 

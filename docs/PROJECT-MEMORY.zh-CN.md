@@ -48,6 +48,8 @@
 - 四个分层包：`AgenticUI.Core`、`AgenticUI.Remote`、`AgenticUI.Wpf`、`AgenticUI.WinForms`。
 - WPF 与 WinForms 替换式控件，以及对现有原生控件的附加/绑定接入。
 - 基础控件包括按钮、文本框、单选框、复选框和下拉列表；后续已扩展日期、数值、列表、标签页、滑块、表格、树等常用控件的语义能力。
+- DataGrid 已支持行列分页读取、单元格读写、增删行、排序过滤、滚动定位、
+  选择和单元格高亮；行号按当前排序、过滤后视图计算。
 - 控件注册表、状态快照、语义命令分发、事件广播和单调递增事件序号。
 - JSONL 审计日志、默认脱敏、用户语义操作录制和命令回放。
 - WPF `AdornerLayer` 高亮和 WinForms 顶层点击穿透覆盖层。
@@ -75,8 +77,8 @@
 
 ## 7. 当前发布基线
 
-- 首个稳定版为 `v0.2.0`，当前稳定版为 `v0.2.1`。
-- NuGet 已公开发布 `AgenticUI.Core` 、`AgenticUI.Remote`、`AgenticUI.Wpf` 和 `AgenticUI.WinForms` 的 `0.2.1` 版本及符号包。
+- 首个稳定版为 `v0.2.0`，当前稳定版为 `v0.3.0`。
+- NuGet 已公开发布 `AgenticUI.Core` 、`AgenticUI.Remote`、`AgenticUI.Wpf` 和 `AgenticUI.WinForms` 的 `0.3.0` 版本及符号包。
 - GitHub Release 包含四个主包和四个符号包。
 - 发布工作流为 `.github/workflows/release.yml`；NuGet 可信发布策略必须与该文件名匹配。
 - 发布作业使用 PowerShell 逐个枚举包文件，不要再将带引号的 `*.nupkg` 直接传给 `dotnet nuget push`。
