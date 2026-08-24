@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -21,6 +22,9 @@ public partial class MainWindow : Window
     private ResourceDictionary? _modernTheme;
     private bool _themeReady;
     private ConfirmDialog? _confirmDialog;
+    private bool _mouseCanvasDragging;
+    private int _mouseCanvasClicks;
+    private double _mouseMarkerSize = 24;
 
     public MainWindow()
     {
@@ -30,7 +34,14 @@ public partial class MainWindow : Window
         RoleCombo.SelectedIndex = 0;
         ThemeCombo.ItemsSource = new[] { "原生外观", "现代主题" };
         ThemeCombo.SelectedIndex = 0;
-        DemoGrid.ItemsSource = new[] { new DemoRow("Alice", "管理员"), new DemoRow("Bob", "操作员") };
+        DemoGrid.ItemsSource = new ObservableCollection<DemoRow>
+        {
+            new("Alice", "管理员"),
+            new("Bob", "操作员"),
+            new("Carol", "访客"),
+            new("David", "操作员"),
+            new("Eve", "管理员")
+        };
         DemoListView.ItemsSource = new[] { new DemoPerson("Alice", "北京"), new DemoPerson("Bob", "上海") };
 
         var logPath = System.IO.Path.Combine(
@@ -143,6 +154,71 @@ public partial class MainWindow : Window
         _confirmDialog.ShowDialog();
     }
 
+    private void DemoMouseCanvas_OnLoaded(object sender, RoutedEventArgs e) =>
+        UpdateMouseCanvas(new Point(DemoMouseCanvas.ActualWidth / 2, DemoMouseCanvas.ActualHeight / 2), false);
+
+    private void DemoMouseCanvas_OnMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        _mouseCanvasDragging = true;
+        _mouseCanvasClicks++;
+        MouseTrail.Points.Clear();
+        DemoMouseCanvas.CaptureMouse();
+        var point = e.GetPosition(DemoMouseCanvas);
+        UpdateMouseCanvas(point, true);
+        MouseCanvasStatus.Text = e.ClickCount > 1
+            ? $"状态：双击 ({point.X:F0}, {point.Y:F0})"
+            : $"状态：按下并开始拖拽 ({point.X:F0}, {point.Y:F0})，累计点击 {_mouseCanvasClicks} 次";
+    }
+
+    private void DemoMouseCanvas_OnMouseMove(object sender, MouseEventArgs e)
+    {
+        var point = e.GetPosition(DemoMouseCanvas);
+        UpdateMouseCanvas(point, _mouseCanvasDragging);
+        if (!_mouseCanvasDragging)
+        {
+            MouseCanvasStatus.Text = $"状态：移动到 ({point.X:F0}, {point.Y:F0})";
+        }
+    }
+
+    private void DemoMouseCanvas_OnMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        var point = e.GetPosition(DemoMouseCanvas);
+        UpdateMouseCanvas(point, _mouseCanvasDragging);
+        _mouseCanvasDragging = false;
+        DemoMouseCanvas.ReleaseMouseCapture();
+        MouseCanvasStatus.Text = $"状态：释放，拖拽结束于 ({point.X:F0}, {point.Y:F0})";
+    }
+
+    private void DemoMouseCanvas_OnMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        _mouseMarkerSize = Math.Clamp(_mouseMarkerSize + Math.Sign(e.Delta) * 4, 12, 64);
+        MouseMarker.Width = _mouseMarkerSize;
+        MouseMarker.Height = _mouseMarkerSize;
+        var point = e.GetPosition(DemoMouseCanvas);
+        UpdateMouseCanvas(point, false);
+        MouseCanvasStatus.Text = $"状态：滚轮 {e.Delta}，圆点尺寸 {_mouseMarkerSize:F0}";
+    }
+
+    private void DemoMouseCanvas_OnMouseRightButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        MouseTrail.Points.Clear();
+        var point = e.GetPosition(DemoMouseCanvas);
+        UpdateMouseCanvas(point, false);
+        MouseCanvasStatus.Text = $"状态：右键清除轨迹 ({point.X:F0}, {point.Y:F0})";
+    }
+
+    private void UpdateMouseCanvas(Point point, bool appendTrail)
+    {
+        var x = Math.Clamp(point.X, 0, Math.Max(0, DemoMouseCanvas.ActualWidth - 1));
+        var y = Math.Clamp(point.Y, 0, Math.Max(0, DemoMouseCanvas.ActualHeight - 1));
+        Canvas.SetLeft(MouseMarker, x - MouseMarker.Width / 2);
+        Canvas.SetTop(MouseMarker, y - MouseMarker.Height / 2);
+        if (appendTrail)
+        {
+            MouseTrail.Points.Add(new Point(x, y));
+        }
+    }
+
     private void OnClosed(object? sender, EventArgs e)
     {
         _statusResetTimer.Stop();
@@ -150,16 +226,20 @@ public partial class MainWindow : Window
         _server.Dispose();
     }
 
-    private sealed class DemoRow
+    public sealed class DemoRow
     {
+        public DemoRow()
+        {
+        }
+
         public DemoRow(string name, string role)
         {
             Name = name;
             Role = role;
         }
 
-        public string Name { get; set; }
-        public string Role { get; set; }
+        public string Name { get; set; } = "";
+        public string Role { get; set; } = "";
     }
 
     private sealed class DemoPerson

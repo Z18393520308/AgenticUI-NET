@@ -7,7 +7,7 @@
 AgenticUI.NET 是一套面向 AI Agent 的桌面 UI 协议、组件库和控件库。它让 WPF 与
 Windows Forms 应用中的控件可以被稳定识别、观察、高亮、记录和通过本机语义命令触发。
 
-> 当前稳定版为 `0.3.0`，默认仍只提供本机 Named Pipe。源码中的下一阶段
+> 当前稳定版为 `0.4.0`，默认仍只提供本机 Named Pipe。可选的
 > `AgenticUI.Gateway` 必须显式部署，并且只接受 WSS/TLS；UDP 仅用于可选发现。
 
 ![AgenticUI.NET 语义控件与事件时间线演示](docs/images/agenticui-overview.png)
@@ -17,15 +17,15 @@ Windows Forms 应用中的控件可以被稳定识别、观察、高亮、记录
 WPF：
 
 ```powershell
-dotnet add package AgenticUI.Wpf --version 0.3.0
-dotnet add package AgenticUI.Remote --version 0.3.0
+dotnet add package AgenticUI.Wpf --version 0.4.0
+dotnet add package AgenticUI.Remote --version 0.4.0
 ```
 
 WinForms：
 
 ```powershell
-dotnet add package AgenticUI.WinForms --version 0.3.0
-dotnet add package AgenticUI.Remote --version 0.3.0
+dotnet add package AgenticUI.WinForms --version 0.4.0
+dotnet add package AgenticUI.Remote --version 0.4.0
 ```
 
 只使用协议、注册表、日志和命令分发时安装 `AgenticUI.Core`。完整步骤见
@@ -35,7 +35,8 @@ dotnet add package AgenticUI.Remote --version 0.3.0
 
 - 同时支持 `.NET 8` 和 `.NET Framework 4.8`
 - 稳定手动 ID，以及未指定 ID 时的临时自动编号
-- WPF 与 WinForms 的替换式控件
+- WPF 与 WinForms 的替换式控件，包括用于 CAD、组态和自定义绘图的
+  `AgenticCanvas` / `AgenticPanel`
 - 无需替换原生控件的附加属性/Binder 接入
 - 按钮、输入框、单选框、复选框和下拉列表
 - DataGrid 行列读取、单元格读写、增删行、排序过滤、滚动和单元格高亮
@@ -75,6 +76,10 @@ tests/
 [本机协议](docs/local-protocol.zh-CN.md)。DataGrid 详细示例见
 [DataGrid 使用指南](docs/datagrid.zh-CN.md)。由其他 AI 或开发者继续维护时，请先阅读
 [AI 开发交接文档](docs/AI-HANDOFF.zh-CN.md)。
+
+两套 Workbench 示例都包含 `demo.mouseSurface` 可视化鼠标画布和 `demo.grid` 表格；对应的
+Remote Console 已提供鼠标移动、单击、双击、滚轮、拖拽以及 DataGrid 读取、高亮、新增、
+排序按钮，连接本机 Named Pipe 后即可逐项体验。
 
 ## WPF 快速接入
 
@@ -261,7 +266,7 @@ await client.ExecuteAsync(new AgenticCommand
 
 ## NuGet 包
 
-`0.3.0` 提供四个包：
+`0.4.0` 提供四个包：
 
 - [`AgenticUI.Core`](https://www.nuget.org/packages/AgenticUI.Core)
 - [`AgenticUI.Remote`](https://www.nuget.org/packages/AgenticUI.Remote)

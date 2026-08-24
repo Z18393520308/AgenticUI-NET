@@ -44,7 +44,7 @@
         <agentic:AgenticTabControl Margin="0,4,0,0"
                                    AgenticId="ui.rootTabs"
                                    AgenticDisplayName="主界面标签页"
-                                   Hint="切换登录、高优先级、中优先级演示页">
+                                   Hint="切换登录、控件、表格与鼠标画布演示页">
           <!-- 登录与操作 -->
           <TabItem Header="登录与操作">
             <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="16">
@@ -262,6 +262,64 @@
                 </agentic:AgenticToolBar>
               </Grid>
             </ScrollViewer>
+          </TabItem>
+
+          <!-- 应用内鼠标动作 -->
+          <TabItem Header="鼠标与画布">
+            <Grid Margin="16">
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+              </Grid.RowDefinitions>
+
+              <StackPanel Grid.Row="0" Margin="0,0,0,12">
+                <TextBlock Text="AgenticCanvas 应用内鼠标动作" FontSize="16" FontWeight="Bold" />
+                <TextBlock Margin="0,6,0,0"
+                           Foreground="#666"
+                           Text="选择 demo.mouseSurface 后，可从 Remote Console 演示移动、单击、双击、滚轮和拖拽。动作不会移动系统真实鼠标。" />
+              </StackPanel>
+
+              <Border Grid.Row="1" BorderBrush="#7AA7FF" BorderThickness="1" CornerRadius="6">
+                <agentic:AgenticCanvas x:Name="DemoMouseCanvas"
+                                       AgenticId="demo.mouseSurface"
+                                       AgenticDisplayName="应用内鼠标画布"
+                                       InstructionNumber="12"
+                                       Hint="演示只作用于当前软件界面的鼠标动作"
+                                       Background="#F3F7FF"
+                                       MinHeight="340"
+                                       Focusable="True"
+                                       Loaded="DemoMouseCanvas_OnLoaded"
+                                       MouseLeftButtonDown="DemoMouseCanvas_OnMouseLeftButtonDown"
+                                       MouseLeftButtonUp="DemoMouseCanvas_OnMouseLeftButtonUp"
+                                       MouseMove="DemoMouseCanvas_OnMouseMove"
+                                       MouseWheel="DemoMouseCanvas_OnMouseWheel"
+                                       MouseRightButtonUp="DemoMouseCanvas_OnMouseRightButtonUp">
+                  <TextBlock Canvas.Left="16" Canvas.Top="14"
+                             Foreground="#48658F"
+                             IsHitTestVisible="False"
+                             Text="蓝色圆点会跟随应用内鼠标消息；拖拽时显示轨迹。" />
+                  <Polyline x:Name="MouseTrail"
+                            Stroke="#6B9BFF"
+                            StrokeThickness="3"
+                            Opacity="0.65"
+                            IsHitTestVisible="False" />
+                  <Ellipse x:Name="MouseMarker"
+                           Width="24"
+                           Height="24"
+                           Fill="#2878FF"
+                           Stroke="White"
+                           StrokeThickness="3"
+                           IsHitTestVisible="False" />
+                </agentic:AgenticCanvas>
+              </Border>
+
+              <TextBlock x:Name="MouseCanvasStatus"
+                         Grid.Row="2"
+                         Margin="0,10,0,0"
+                         FontWeight="SemiBold"
+                         Text="状态：等待鼠标动作" />
+            </Grid>
           </TabItem>
         </agentic:AgenticTabControl>
       </DockPanel>

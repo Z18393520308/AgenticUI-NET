@@ -505,6 +505,7 @@ internal sealed class WpfControlAdapter : IAgenticControl
         ToggleButton => "toggleButton",
         ButtonBase => "button",
         PasswordBox => "passwordBox",
+        Canvas => "canvas",
         TextBox => "textBox",
         DatePicker => "datePicker",
         ComboBox => "comboBox",

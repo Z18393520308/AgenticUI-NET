@@ -9,6 +9,83 @@ public partial class RemoteConsoleForm : Form
     public RemoteConsoleForm()
     {
         InitializeComponent();
+        AddExtendedDemoActions();
+    }
+
+    private void AddExtendedDemoActions()
+    {
+        actionsPanel.SetFlowBreak(setTextButton, true);
+
+        AddActionLabel("鼠标画布");
+        AddActionButton("移到中心", () => ExecuteAsync(
+            AgenticActions.MouseMove,
+            new Dictionary<string, object?> { ["xRatio"] = 0.5, ["yRatio"] = 0.5 }));
+        AddActionButton("单击", () => ExecuteAsync(
+            AgenticActions.MouseClick,
+            new Dictionary<string, object?> { ["xRatio"] = 0.35, ["yRatio"] = 0.4 }));
+        AddActionButton("双击", () => ExecuteAsync(
+            AgenticActions.MouseDoubleClick,
+            new Dictionary<string, object?> { ["xRatio"] = 0.65, ["yRatio"] = 0.4 }));
+        AddActionButton("滚轮", () => ExecuteAsync(
+            AgenticActions.MouseWheel,
+            new Dictionary<string, object?> { ["xRatio"] = 0.5, ["yRatio"] = 0.5, ["delta"] = 120 }));
+        var dragButton = AddActionButton("拖拽", () => ExecuteAsync(
+            AgenticActions.MouseDrag,
+            new Dictionary<string, object?>
+            {
+                ["startXRatio"] = 0.2,
+                ["startYRatio"] = 0.7,
+                ["endXRatio"] = 0.8,
+                ["endYRatio"] = 0.25
+            }));
+        actionsPanel.SetFlowBreak(dragButton, true);
+
+        AddActionLabel("DataGrid");
+        AddActionButton("读取行", async () =>
+        {
+            await ExecuteAsync(
+                AgenticActions.GetRows,
+                new Dictionary<string, object?> { ["start"] = 0, ["count"] = 10 });
+            ShowSelectedState("rows", "表格行");
+        });
+        AddActionButton("高亮单元格", () => ExecuteAsync(
+            AgenticActions.HighlightCell,
+            new Dictionary<string, object?> { ["row"] = 1, ["column"] = "Name" }));
+        AddActionButton("新增行", () => ExecuteAsync(
+            AgenticActions.AddRow,
+            new Dictionary<string, object?>
+            {
+                ["values"] = new Dictionary<string, object?>
+                {
+                    ["Name"] = "AI 新增",
+                    ["Role"] = "访客"
+                }
+            }));
+        AddActionButton("按姓名排序", () => ExecuteAsync(
+            AgenticActions.SortByColumn,
+            new Dictionary<string, object?> { ["column"] = "Name", ["direction"] = "ascending" }));
+    }
+
+    private void AddActionLabel(string text) =>
+        actionsPanel.Controls.Add(new Label
+        {
+            Text = text,
+            AutoSize = true,
+            Font = new Font(Font, FontStyle.Bold),
+            Margin = new Padding(4, 9, 4, 4)
+        });
+
+    private Button AddActionButton(string text, Func<Task> action)
+    {
+        var button = new Button
+        {
+            Text = text,
+            AutoSize = true,
+            Margin = new Padding(4)
+        };
+        button.Click += async (_, _) => await action();
+        actionsPanel.Controls.Add(button);
+        return button;
     }
 
     private async void Connect_Click(object? sender, EventArgs e)
@@ -327,6 +404,17 @@ public partial class RemoteConsoleForm : Form
         state.TryGetValue(key, out var value) && int.TryParse(value?.ToString(), out var parsed)
             ? parsed
             : fallback;
+
+    private void ShowSelectedState(string key, string label)
+    {
+        if (controlsList.SelectedItems.Count > 0 &&
+            controlsList.SelectedItems[0].Tag is AgenticControlDescriptor descriptor &&
+            descriptor.State.TryGetValue(key, out var value))
+        {
+            readResultLabel.Text = $"{label}：{value}";
+            readResultLabel.ForeColor = Color.Green;
+        }
+    }
 
     private void EnsureSplitterWidth() =>
         mainSplit.SplitterDistance = Math.Max(420, (int)(mainSplit.Width * 0.65));

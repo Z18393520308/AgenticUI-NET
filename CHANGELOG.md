@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.4.0
+
 - 新增独立 `.NET 8` `AgenticUI.Gateway`，通过 WSS/TLS 将远程语义请求安全转发到本机
   Named Pipe；WPF/WinForms 宿主仍不监听网络端口。
 - Gateway 使用相互独立的公网与本机令牌，并提供最大连接数、单连接速率、消息大小、
@@ -11,6 +13,8 @@
 - WPF/WinForms 新增仅限当前应用界面的 `mouseMove`、`mouseClick`、`mouseDoubleClick`、
   `mouseWheel` 和 `mouseDrag`；使用控件内相对坐标，不移动系统真实指针，并拒绝越界、遮挡、
   禁用或非活动模态窗口中的输入。
+- 新增 WPF `AgenticCanvas` 与 WinForms `AgenticPanel` 智能画布控件；两套 Workbench 增加
+  可视化鼠标画布，Remote Console 增加鼠标动作和 DataGrid 扩展动作的一键演示。
 
 ## 0.3.0
 

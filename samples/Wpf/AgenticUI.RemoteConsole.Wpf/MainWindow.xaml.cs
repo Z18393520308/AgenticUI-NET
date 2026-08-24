@@ -77,6 +77,68 @@ public partial class MainWindow : Window
     private async void SetText_OnClick(object sender, RoutedEventArgs e) =>
         await SetSelectedTextAsync();
 
+    private async void MouseMove_OnClick(object sender, RoutedEventArgs e) =>
+        await ExecuteAsync(
+            AgenticActions.MouseMove,
+            new Dictionary<string, object?> { ["xRatio"] = 0.5, ["yRatio"] = 0.5 });
+
+    private async void MouseClick_OnClick(object sender, RoutedEventArgs e) =>
+        await ExecuteAsync(
+            AgenticActions.MouseClick,
+            new Dictionary<string, object?> { ["xRatio"] = 0.35, ["yRatio"] = 0.55 });
+
+    private async void MouseDoubleClick_OnClick(object sender, RoutedEventArgs e) =>
+        await ExecuteAsync(
+            AgenticActions.MouseDoubleClick,
+            new Dictionary<string, object?> { ["xRatio"] = 0.65, ["yRatio"] = 0.4 });
+
+    private async void MouseWheel_OnClick(object sender, RoutedEventArgs e) =>
+        await ExecuteAsync(
+            AgenticActions.MouseWheel,
+            new Dictionary<string, object?> { ["xRatio"] = 0.5, ["yRatio"] = 0.5, ["delta"] = 120 });
+
+    private async void MouseDrag_OnClick(object sender, RoutedEventArgs e) =>
+        await ExecuteAsync(
+            AgenticActions.MouseDrag,
+            new Dictionary<string, object?>
+            {
+                ["startXRatio"] = 0.2,
+                ["startYRatio"] = 0.25,
+                ["endXRatio"] = 0.8,
+                ["endYRatio"] = 0.75,
+                ["steps"] = 16
+            });
+
+    private async void GridRows_OnClick(object sender, RoutedEventArgs e)
+    {
+        await ExecuteAsync(
+            AgenticActions.GetRows,
+            new Dictionary<string, object?> { ["start"] = 0, ["count"] = 5 });
+        ShowSelectedState("rows", "表格行");
+    }
+
+    private async void GridHighlightCell_OnClick(object sender, RoutedEventArgs e) =>
+        await ExecuteAsync(
+            AgenticActions.HighlightCell,
+            new Dictionary<string, object?> { ["row"] = 0, ["column"] = "Name" });
+
+    private async void GridAddRow_OnClick(object sender, RoutedEventArgs e) =>
+        await ExecuteAsync(
+            AgenticActions.AddRow,
+            new Dictionary<string, object?>
+            {
+                ["values"] = new Dictionary<string, object?>
+                {
+                    ["Name"] = "New User",
+                    ["Role"] = "访客"
+                }
+            });
+
+    private async void GridSort_OnClick(object sender, RoutedEventArgs e) =>
+        await ExecuteAsync(
+            AgenticActions.SortByColumn,
+            new Dictionary<string, object?> { ["column"] = "Name", ["direction"] = "ascending" });
+
     private async void InputTextBox_OnKeyDown(object sender, KeyEventArgs e)
     {
         if (e.Key == Key.Enter)
@@ -313,6 +375,16 @@ public partial class MainWindow : Window
         await ExecuteAsync(
             AgenticActions.SelectItem,
             new Dictionary<string, object?> { ["index"] = (selectedIndex + 1) % itemCount });
+    }
+
+    private void ShowSelectedState(string key, string label)
+    {
+        if (ControlsList.SelectedItem is ControlRow row &&
+            row.Descriptor.State.TryGetValue(key, out var value))
+        {
+            ReadResultText.Text = $"{label}：{value}";
+            ReadResultText.Foreground = Brushes.Green;
+        }
     }
 
     private static int ReadInt(IReadOnlyDictionary<string, object?> state, string key, int fallback) =>

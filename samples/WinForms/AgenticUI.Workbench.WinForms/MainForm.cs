@@ -116,7 +116,7 @@ public partial class MainForm : Form
             Name = "demoRootTabs",
             AgenticId = "ui.rootTabs",
             AgenticDisplayName = "主界面标签页",
-            Hint = "切换登录、高优先级、中优先级演示页",
+            Hint = "切换登录、控件、表格与鼠标画布演示页",
             Location = new Point(margin, 118),
             Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right,
             Size = new Size(
@@ -133,10 +133,12 @@ public partial class MainForm : Form
         var (loginTab, loginHost) = CreateScrollTab("登录与操作");
         var (highTab, highHost) = CreateScrollTab("高优先级");
         var (mediumTab, mediumHost) = CreateScrollTab("中优先级");
+        var (mouseTab, mouseHost) = CreateScrollTab("鼠标与画布");
         BuildLoginTab(loginHost, leftCol, rightCol, colWidth);
         BuildHighPriorityTab(highHost, leftCol, rightCol, colWidth, colGap);
         BuildMediumPriorityTab(mediumHost, leftCol, rightCol, colWidth, colGap);
-        rootTabs.TabPages.AddRange([loginTab, highTab, mediumTab]);
+        BuildMouseTab(mouseHost, leftCol, rightCol, colWidth, colGap);
+        rootTabs.TabPages.AddRange([loginTab, highTab, mediumTab, mouseTab]);
         demoPanel.Controls.Add(rootTabs);
     }
 
@@ -411,10 +413,23 @@ public partial class MainForm : Form
             SelectionMode = DataGridViewSelectionMode.FullRowSelect,
             AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill
         };
-        grid.Columns.Add("Name", "姓名");
-        grid.Columns.Add("Role", "角色");
+        grid.Columns.Add(new DataGridViewTextBoxColumn
+        {
+            Name = "Name",
+            HeaderText = "姓名",
+            SortMode = DataGridViewColumnSortMode.Automatic
+        });
+        grid.Columns.Add(new DataGridViewTextBoxColumn
+        {
+            Name = "Role",
+            HeaderText = "角色",
+            SortMode = DataGridViewColumnSortMode.Automatic
+        });
         grid.Rows.Add("Alice", "管理员");
         grid.Rows.Add("Bob", "操作员");
+        grid.Rows.Add("Carol", "工程师");
+        grid.Rows.Add("David", "审核员");
+        grid.Rows.Add("Eve", "访客");
         host.Controls.Add(grid);
         y = rowTop + 176;
 
@@ -447,6 +462,30 @@ public partial class MainForm : Form
         y += 48;
 
         host.AutoScrollMinSize = new Size(rightCol + colWidth + 20, y + 24);
+    }
+
+    private static void BuildMouseTab(Panel host, int leftCol, int rightCol, int colWidth, int colGap)
+    {
+        AddSection(host, "AgenticPanel 应用内鼠标动作", leftCol, 16);
+        host.Controls.Add(new Label
+        {
+            Text = "在 Remote Console 中选择 demo.mouseSurface，可演示移动、单击、双击、滚轮和拖拽。动作不会移动系统真实鼠标。",
+            AutoSize = true,
+            ForeColor = Color.DimGray,
+            Location = new Point(leftCol, 48)
+        });
+
+        host.Controls.Add(new MouseDemoSurface
+        {
+            AgenticId = "demo.mouseSurface",
+            AgenticDisplayName = "应用内鼠标画布",
+            InstructionNumber = 12,
+            Hint = "演示只作用于当前软件界面的鼠标动作",
+            Location = new Point(leftCol, 82),
+            Size = new Size(colWidth * 2 + colGap, 380)
+        });
+
+        host.AutoScrollMinSize = new Size(rightCol + colWidth + 20, 490);
     }
 
     private static void AddSection(Control host, string title, int x, int y) =>

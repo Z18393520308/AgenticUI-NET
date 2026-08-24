@@ -550,6 +550,7 @@ internal sealed class WinFormsControlAdapter : IAgenticControl
         StatusStrip => "statusStrip",
         ToolStrip => "toolStrip",
         ProgressBar => "progressBar",
+        Panel => "panel",
         Label => "label",
         RadioButton => "radioButton",
         CheckBox => "checkBox",

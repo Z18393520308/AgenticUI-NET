@@ -68,6 +68,16 @@ public class AgenticComboBox : ComboBox, IAgenticWinFormsControl
     [Category("AgenticUI")] public string? Hint { get => AgenticMetadataControl.Options(this).Hint; set => AgenticMetadataControl.Options(this).Hint = value; }
 }
 
+public class AgenticPanel : Panel, IAgenticWinFormsControl
+{
+    public AgenticPanel() => AgenticControlBinder.Attach(this);
+    [Category("AgenticUI")] public string? AgenticId { get => AgenticMetadataControl.Options(this).Id; set { AgenticMetadataControl.Options(this).Id = value; AgenticMetadataControl.Refresh(this); } }
+    [Category("AgenticUI")] public string? AgenticDisplayName { get => AgenticMetadataControl.Options(this).DisplayName; set => AgenticMetadataControl.Options(this).DisplayName = value; }
+    [Category("AgenticUI")] public bool IsSensitive { get => AgenticMetadataControl.Options(this).IsSensitive; set => AgenticMetadataControl.Options(this).IsSensitive = value; }
+    [Category("AgenticUI")] public int InstructionNumber { get => AgenticMetadataControl.Options(this).InstructionNumber; set => AgenticMetadataControl.Options(this).InstructionNumber = value; }
+    [Category("AgenticUI")] public string? Hint { get => AgenticMetadataControl.Options(this).Hint; set => AgenticMetadataControl.Options(this).Hint = value; }
+}
+
 public class AgenticDateTimePicker : DateTimePicker, IAgenticWinFormsControl
 {
     public AgenticDateTimePicker() => AgenticControlBinder.Attach(this);

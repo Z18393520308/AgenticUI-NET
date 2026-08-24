@@ -85,8 +85,8 @@
 
 ## 7. 当前发布基线
 
-- 首个稳定版为 `v0.2.0`，当前稳定版为 `v0.3.0`。
-- NuGet 已公开发布 `AgenticUI.Core` 、`AgenticUI.Remote`、`AgenticUI.Wpf` 和 `AgenticUI.WinForms` 的 `0.3.0` 版本及符号包。
+- 首个稳定版为 `v0.2.0`，当前稳定版为 `v0.4.0`。
+- NuGet 已公开发布 `AgenticUI.Core` 、`AgenticUI.Remote`、`AgenticUI.Wpf` 和 `AgenticUI.WinForms` 的 `0.4.0` 版本及符号包。
 - GitHub Release 包含四个主包和四个符号包。
 - 发布工作流为 `.github/workflows/release.yml`；NuGet 可信发布策略必须与该文件名匹配。
 - 发布作业使用 PowerShell 逐个枚举包文件，不要再将带引号的 `*.nupkg` 直接传给 `dotnet nuget push`。

@@ -1,6 +1,6 @@
 # AgenticUI.NET 快速开始
 
-本指南以 `0.3.0` 为例。WPF 和 WinForms 应用均可使用 .NET 8；组件库同时兼容
+本指南以 `0.4.0` 为例。WPF 和 WinForms 应用均可使用 .NET 8；组件库同时兼容
 .NET Framework 4.8。
 
 ## 1. 安装包
@@ -8,21 +8,21 @@
 WPF：
 
 ```powershell
-dotnet add package AgenticUI.Wpf --version 0.3.0
-dotnet add package AgenticUI.Remote --version 0.3.0
+dotnet add package AgenticUI.Wpf --version 0.4.0
+dotnet add package AgenticUI.Remote --version 0.4.0
 ```
 
 WinForms：
 
 ```powershell
-dotnet add package AgenticUI.WinForms --version 0.3.0
-dotnet add package AgenticUI.Remote --version 0.3.0
+dotnet add package AgenticUI.WinForms --version 0.4.0
+dotnet add package AgenticUI.Remote --version 0.4.0
 ```
 
 只使用协议、注册表、日志和命令分发时安装：
 
 ```powershell
-dotnet add package AgenticUI.Core --version 0.3.0
+dotnet add package AgenticUI.Core --version 0.4.0
 ```
 
 ## 2. 为控件添加语义身份
@@ -41,6 +41,14 @@ dotnet add package AgenticUI.Core --version 0.3.0
 ```
 
 也可以直接使用 `AgenticButton`、`AgenticTextBox`、`AgenticComboBox` 等替换式控件。
+需要承载自定义绘图、CAD 或组态画面时，可以使用新增的 `AgenticCanvas`：
+
+```xml
+<agentic:AgenticCanvas
+    AgenticId="editor.canvas"
+    AgenticDisplayName="编辑画布"
+    Hint="可在当前画布内执行应用内鼠标动作" />
+```
 
 ### WinForms
 
@@ -54,6 +62,16 @@ AgenticControlBinder.Attach(loginButton, new AgenticControlOptions
 ```
 
 未指定 ID 时会生成临时 ID。需要跨版本稳定定位的业务控件应始终配置手动 ID。
+自定义绘图区域可以直接继承或实例化 `AgenticPanel`：
+
+```csharp
+var surface = new AgenticPanel
+{
+    AgenticId = "editor.canvas",
+    AgenticDisplayName = "编辑画布",
+    Hint = "可在当前画布内执行应用内鼠标动作"
+};
+```
 
 ## 3. 启动本机语义网关
 
@@ -67,7 +85,7 @@ server.Start();
 var token = server.AuthenticationToken;
 ```
 
-稳定版 `0.3.0` 默认只使用本机 Named Pipe，不监听 TCP。源码中的可选独立
+稳定版 `0.4.0` 默认只使用本机 Named Pipe，不监听 TCP。可选的独立
 `AgenticUI.Gateway` 使用 WSS/TLS 转发到本机管道，桌面应用本身仍不监听网络端口。连接令牌
 拥有本次会话的操作权限，不要写入源码、日志或版本控制。跨机器部署见
 [Gateway 安全部署指南](gateway.zh-CN.md)。
@@ -134,6 +152,10 @@ await client.ExecuteAsync(new AgenticCommand
 鼠标坐标是控件内 `0～1` 的相对值，不移动系统真实指针，也不能操作其他软件。普通按钮等标准
 控件仍应优先使用 `Click` 等语义动作。完整参数和安全限制见
 [本机协议的应用内鼠标动作](local-protocol.zh-CN.md#应用内鼠标动作)。
+
+仓库中的 WPF 与 WinForms Workbench 均提供 `demo.mouseSurface` 交互画布，并在对应的
+Remote Console 中提供移动、单击、双击、滚轮、拖拽以及 DataGrid 读取、高亮、新增和排序
+按钮，可直接连接后体验完整命令链路。
 
 ## 5. 开启本地审计
 

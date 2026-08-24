@@ -52,22 +52,38 @@
       <ListBox x:Name="EventsList" Grid.Column="2" />
     </Grid>
 
-    <WrapPanel Grid.Row="2" Margin="0,10,0,0">
-      <Button Content="刷新控件" Margin="0,0,8,0" Padding="12,4" Click="Refresh_OnClick" />
-      <Button Content="高亮" Margin="0,0,8,0" Padding="12,4" Click="Highlight_OnClick" />
-      <Button Content="取消高亮" Margin="0,0,8,0" Padding="12,4" Click="ClearHighlight_OnClick" />
-      <Button Content="点击/打开" Margin="0,0,8,0" Padding="12,4" Click="Click_OnClick" />
-      <Button Content="选择下一项" Margin="0,0,8,0" Padding="12,4" Click="SelectNext_OnClick" />
-      <Button Content="聚焦" Margin="0,0,8,0" Padding="12,4" Click="Focus_OnClick" />
-      <TextBlock Text="输入文本" VerticalAlignment="Center" Margin="8,0,6,0" />
-      <TextBox x:Name="InputTextBox" Width="200" Margin="0,0,8,0" KeyDown="InputTextBox_OnKeyDown" />
-      <Button Content="读取" Margin="0,0,8,0" Padding="12,4" Click="Read_OnClick" />
-      <TextBlock x:Name="ReadResultText"
-                 Text="读取结果：—"
-                 VerticalAlignment="Center"
-                 Foreground="Gray"
-                 Margin="0,0,12,0" />
-      <Button Content="设置文本" Padding="12,4" Click="SetText_OnClick" />
-    </WrapPanel>
+    <StackPanel Grid.Row="2" Margin="0,10,0,0">
+      <WrapPanel>
+        <Button Content="刷新控件" Margin="0,0,8,0" Padding="12,4" Click="Refresh_OnClick" />
+        <Button Content="高亮" Margin="0,0,8,0" Padding="12,4" Click="Highlight_OnClick" />
+        <Button Content="取消高亮" Margin="0,0,8,0" Padding="12,4" Click="ClearHighlight_OnClick" />
+        <Button Content="点击/打开" Margin="0,0,8,0" Padding="12,4" Click="Click_OnClick" />
+        <Button Content="选择下一项" Margin="0,0,8,0" Padding="12,4" Click="SelectNext_OnClick" />
+        <Button Content="聚焦" Margin="0,0,8,0" Padding="12,4" Click="Focus_OnClick" />
+        <TextBlock Text="输入文本" VerticalAlignment="Center" Margin="8,0,6,0" />
+        <TextBox x:Name="InputTextBox" Width="200" Margin="0,0,8,0" KeyDown="InputTextBox_OnKeyDown" />
+        <Button Content="读取" Margin="0,0,8,0" Padding="12,4" Click="Read_OnClick" />
+        <TextBlock x:Name="ReadResultText"
+                   Text="读取结果：—"
+                   VerticalAlignment="Center"
+                   Foreground="Gray"
+                   Margin="0,0,12,0" />
+        <Button Content="设置文本" Padding="12,4" Click="SetText_OnClick" />
+      </WrapPanel>
+
+      <WrapPanel Margin="0,8,0,0">
+        <TextBlock Text="鼠标画布" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,8,0" />
+        <Button Content="移到中心" Margin="0,0,6,0" Padding="10,3" Click="MouseMove_OnClick" />
+        <Button Content="单击" Margin="0,0,6,0" Padding="10,3" Click="MouseClick_OnClick" />
+        <Button Content="双击" Margin="0,0,6,0" Padding="10,3" Click="MouseDoubleClick_OnClick" />
+        <Button Content="滚轮" Margin="0,0,6,0" Padding="10,3" Click="MouseWheel_OnClick" />
+        <Button Content="拖拽" Margin="0,0,16,0" Padding="10,3" Click="MouseDrag_OnClick" />
+        <TextBlock Text="DataGrid" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,8,0" />
+        <Button Content="读取行" Margin="0,0,6,0" Padding="10,3" Click="GridRows_OnClick" />
+        <Button Content="高亮单元格" Margin="0,0,6,0" Padding="10,3" Click="GridHighlightCell_OnClick" />
+        <Button Content="新增行" Margin="0,0,6,0" Padding="10,3" Click="GridAddRow_OnClick" />
+        <Button Content="姓名排序" Padding="10,3" Click="GridSort_OnClick" />
+      </WrapPanel>
+    </StackPanel>
   </Grid>
 </Window>

@@ -69,6 +69,16 @@ public class AgenticComboBox : ComboBox, IAgenticWpfControl
     public string? Hint { get => AgenticProperties.GetHint(this); set => AgenticProperties.SetHint(this, value); }
 }
 
+public class AgenticCanvas : Canvas, IAgenticWpfControl
+{
+    public AgenticCanvas() => AgenticProperties.SetEnabled(this, true);
+    public string? AgenticId { get => AgenticProperties.GetId(this); set => AgenticProperties.SetId(this, value); }
+    public bool IsSensitive { get => AgenticProperties.GetSensitive(this); set => AgenticProperties.SetSensitive(this, value); }
+    public string? AgenticDisplayName { get => AgenticProperties.GetDisplayName(this); set => AgenticProperties.SetDisplayName(this, value); }
+    public int InstructionNumber { get => AgenticProperties.GetInstructionNumber(this); set => AgenticProperties.SetInstructionNumber(this, value); }
+    public string? Hint { get => AgenticProperties.GetHint(this); set => AgenticProperties.SetHint(this, value); }
+}
+
 public class AgenticListBox : ListBox, IAgenticWpfControl
 {
     public AgenticListBox() => AgenticProperties.SetEnabled(this, true);
