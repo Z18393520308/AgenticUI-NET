@@ -23,6 +23,32 @@ public sealed class AgenticNamedPipeServerOptions
 
 public static class AgenticRemoteSecurity
 {
+    /// <summary>
+    /// Fixed local pipe token for Workbench / Gateway local debugging only. Override with
+    /// AGENTICUI_PIPE_TOKEN in production.
+    /// </summary>
+    public const string DevelopmentPipeToken = "agenticui-dev-pipe-token-0123456789abcdef";
+
+    /// <summary>
+    /// Fixed WSS client token paired with <see cref="DevelopmentPipeToken"/> for Gateway
+    /// local debugging only.
+    /// </summary>
+    public const string DevelopmentGatewayToken = "agenticui-dev-gateway-token-0123456789abc";
+
+    /// <summary>
+    /// Default Gateway WSS endpoint for local debugging (requires trusted dev certificate).
+    /// </summary>
+    public const string DevelopmentGatewayWebSocketUrl = "wss://localhost:7443/agenticui";
+
+    /// <summary>
+    /// Returns AGENTICUI_PIPE_TOKEN when set; otherwise <see cref="DevelopmentPipeToken"/>.
+    /// </summary>
+    public static string ResolveDevelopmentPipeToken()
+    {
+        var configured = Environment.GetEnvironmentVariable("AGENTICUI_PIPE_TOKEN");
+        return string.IsNullOrWhiteSpace(configured) ? DevelopmentPipeToken : configured;
+    }
+
     public static string CreateToken(int byteLength = 32)
     {
         if (byteLength < 16)

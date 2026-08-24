@@ -1,6 +1,8 @@
+using System.Net;
 using System.Text;
 using AgenticUI;
 using AgenticUI.Gateway;
+using AgenticUI.Remote;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
@@ -81,6 +83,31 @@ public sealed class GatewaySecurityTests
         Assert.DoesNotContain(options.PipeName, json, StringComparison.Ordinal);
         Assert.DoesNotContain("token", json, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("pipe", json, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void DiscoveryPayloadCanBeParsedByRemoteClient()
+    {
+        var options = ValidOptions();
+        options.Discovery.Enabled = true;
+        var broadcaster = new UdpDiscoveryBroadcaster(
+            options,
+            NullLogger<UdpDiscoveryBroadcaster>.Instance);
+
+        var payload = broadcaster.CreatePayload();
+
+        Assert.True(
+            AgenticGatewayDiscovery.TryParseAnnouncement(payload, out var announcement));
+        Assert.Equal(options.Discovery.PublicWebSocketUrl, announcement.WebSocketUrl);
+    }
+
+    [Fact]
+    public void DiscoveryDestinationsIncludeLoopbackForLocalScanning()
+    {
+        var destinations = UdpDiscoveryBroadcaster.GetDiscoveryDestinations(47731).ToList();
+
+        Assert.Contains(destinations, item => item.Address.Equals(IPAddress.Loopback));
+        Assert.Contains(destinations, item => item.Address.Equals(IPAddress.Broadcast));
     }
 
     [Fact]

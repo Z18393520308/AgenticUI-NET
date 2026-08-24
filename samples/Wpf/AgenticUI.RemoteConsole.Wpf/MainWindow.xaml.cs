@@ -10,14 +10,93 @@ namespace AgenticUI.RemoteConsole.Wpf;
 public partial class MainWindow : Window
 {
     private readonly ObservableCollection<ControlRow> _controls = new();
-    private AgenticNamedPipeClient? _client;
+    private IAgenticRemoteClient? _client;
 
     public MainWindow()
     {
         InitializeComponent();
         ControlsList.ItemsSource = _controls;
+        ApplyTransportDefaults();
+        UpdateDiscoveryControlsVisibility();
         Closed += (_, _) => _client?.Dispose();
     }
+
+    private void TransportCombo_OnSelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        ApplyTransportDefaults();
+        UpdateDiscoveryControlsVisibility();
+    }
+
+    private void ApplyTransportDefaults()
+    {
+        var useGateway = TransportCombo.SelectedIndex == 1;
+        EndpointLabel.Text = useGateway ? "WSS" : "管道";
+        PipeNameBox.Width = useGateway ? 280 : 180;
+        PipeNameBox.Text = useGateway
+            ? AgenticRemoteSecurity.DevelopmentGatewayWebSocketUrl
+            : "AgenticUI.NET.Wpf";
+
+        TokenBox.Text = useGateway
+            ? AgenticRemoteSecurity.DevelopmentGatewayToken
+            : AgenticRemoteSecurity.DevelopmentPipeToken;
+    }
+
+    private void UpdateDiscoveryControlsVisibility()
+    {
+        var useGateway = TransportCombo.SelectedIndex == 1;
+        DiscoverButton.Visibility = useGateway ? Visibility.Visible : Visibility.Collapsed;
+        DiscoveryCombo.Visibility = useGateway ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private async void Discover_OnClick(object sender, RoutedEventArgs e)
+    {
+        DiscoverButton.IsEnabled = false;
+        DiscoveryCombo.Items.Clear();
+        StatusText.Text = "正在扫描局域网 Gateway（UDP 47731，约 6 秒）…";
+        StatusText.Foreground = Brushes.DarkOrange;
+        try
+        {
+            var entries = await AgenticGatewayDiscovery.ScanAsync();
+            foreach (var entry in entries)
+            {
+                DiscoveryCombo.Items.Add(new GatewayDiscoveryItem(entry));
+            }
+
+            if (DiscoveryCombo.Items.Count > 0)
+            {
+                DiscoveryCombo.SelectedIndex = 0;
+                StatusText.Text = $"发现 {DiscoveryCombo.Items.Count} 个 Gateway，已填入 WSS 地址";
+                StatusText.Foreground = Brushes.Green;
+            }
+            else
+            {
+                StatusText.Text = "未发现 Gateway（请确认 Gateway 已启动；本机联调需重启 Gateway 以加载 Discovery 配置）";
+                StatusText.Foreground = Brushes.DarkOrange;
+            }
+        }
+        catch (Exception exception)
+        {
+            StatusText.Text = $"扫描失败：{exception.Message}";
+            StatusText.Foreground = Brushes.Firebrick;
+        }
+        finally
+        {
+            DiscoverButton.IsEnabled = true;
+        }
+    }
+
+    private void DiscoveryCombo_OnSelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (DiscoveryCombo.SelectedItem is GatewayDiscoveryItem item)
+        {
+            PipeNameBox.Text = item.WebSocketUrl;
+        }
+    }
+
+    private static bool IsLocalDevelopmentGateway(string endpoint) =>
+        Uri.TryCreate(endpoint, UriKind.Absolute, out var uri) &&
+        uri.Scheme == "wss" &&
+        uri.Host is "localhost" or "127.0.0.1" or "::1";
 
     private async void Connect_OnClick(object sender, RoutedEventArgs e)
     {
@@ -29,10 +108,16 @@ public partial class MainWindow : Window
         try
         {
             _client?.Dispose();
-            _client = await AgenticNamedPipeClient.ConnectAsync(
-                TokenBox.Text,
-                PipeNameBox.Text,
-                "AgenticUI Remote Console (WPF)");
+            _client = TransportCombo.SelectedIndex == 1
+                ? await AgenticWebSocketClient.ConnectAsync(
+                    new Uri(PipeNameBox.Text),
+                    TokenBox.Text,
+                    "AgenticUI Remote Console (WPF)",
+                    skipTlsValidationForDevelopment: IsLocalDevelopmentGateway(PipeNameBox.Text))
+                : await AgenticNamedPipeClient.ConnectAsync(
+                    TokenBox.Text,
+                    PipeNameBox.Text,
+                    "AgenticUI Remote Console (WPF)");
             _client.EventReceived += OnEventReceived;
             _client.ConnectionFaulted += OnConnectionFaulted;
             StatusText.Text = "已认证连接";
@@ -41,7 +126,10 @@ public partial class MainWindow : Window
         }
         catch (Exception exception)
         {
-            StatusText.Text = $"连接失败：{exception.Message}";
+            StatusText.Text = TransportCombo.SelectedIndex == 1 &&
+                              exception.Message.Contains("Unable to connect", StringComparison.OrdinalIgnoreCase)
+                ? "连接失败：无法连接 Gateway，请先启动 AgenticUI.Gateway（7443 端口）"
+                : $"连接失败：{exception.Message}";
             StatusText.Foreground = Brushes.Firebrick;
         }
         finally
@@ -155,7 +243,7 @@ public partial class MainWindow : Window
     {
         if (_client is null)
         {
-            MessageBox.Show(this, "请先连接 Workbench（管道名 + 令牌）。", "AgenticUI.NET");
+            MessageBox.Show(this, "请先连接 Workbench 或 Gateway。", "AgenticUI.NET");
             return;
         }
 
@@ -433,6 +521,13 @@ public partial class MainWindow : Window
 
     private void ShowError(Exception exception) =>
         MessageBox.Show(this, exception.Message, "AgenticUI.NET", MessageBoxButton.OK, MessageBoxImage.Warning);
+
+    private sealed class GatewayDiscoveryItem(AgenticGatewayDiscoveryEntry entry)
+    {
+        public string WebSocketUrl { get; } = entry.Announcement.WebSocketUrl;
+
+        public override string ToString() => entry.DisplayText;
+    }
 
     private sealed class ControlRow
     {

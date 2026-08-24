@@ -1,16 +1,17 @@
 using System.Collections.Concurrent;
-using System.IO.Pipes;
+using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
 using AgenticUI;
 
 namespace AgenticUI.Remote;
 
-public sealed class AgenticNamedPipeClient : IAgenticRemoteClient
+/// <summary>
+/// Connects to <see cref="AgenticUI.Gateway"/> over WSS/TLS. Each message is one complete JSON object.
+/// </summary>
+public sealed class AgenticWebSocketClient : IAgenticRemoteClient
 {
-    private readonly NamedPipeClientStream _pipe;
-    private readonly StreamReader _reader;
-    private readonly StreamWriter _writer;
+    private readonly ClientWebSocket _socket;
     private readonly SemaphoreSlim _writeLock = new(1, 1);
     private readonly ConcurrentDictionary<string, TaskCompletionSource<RemoteResponse>> _pending = new();
     private readonly CancellationTokenSource _lifetime = new();
@@ -18,44 +19,47 @@ public sealed class AgenticNamedPipeClient : IAgenticRemoteClient
     private readonly Task _readLoop;
     private bool _disposed;
 
-    private AgenticNamedPipeClient(NamedPipeClientStream pipe)
+    private AgenticWebSocketClient(ClientWebSocket socket)
     {
-        _pipe = pipe;
-        _reader = new StreamReader(pipe, Encoding.UTF8, false, 1024, true);
-        _writer = new StreamWriter(pipe, new UTF8Encoding(false), 1024, true) { AutoFlush = true };
+        _socket = socket;
         _readLoop = ReadLoopAsync(_lifetime.Token);
     }
 
     public event Action<AgenticEvent>? EventReceived;
+
     public event Action<Exception>? ConnectionFaulted;
 
-    public bool IsConnected => !_disposed && _pipe.IsConnected;
+    public bool IsConnected => !_disposed && _socket.State == WebSocketState.Open;
 
-    public static async Task<AgenticNamedPipeClient> ConnectAsync(
+    public static async Task<AgenticWebSocketClient> ConnectAsync(
+        Uri webSocketUri,
         string authenticationToken,
-        string pipeName = "AgenticUI.NET",
         string? clientName = null,
-        int timeoutMilliseconds = 5000,
+        bool skipTlsValidationForDevelopment = false,
         CancellationToken cancellationToken = default)
     {
+        if (webSocketUri.Scheme != "wss")
+        {
+            throw new ArgumentException("Only wss:// endpoints are supported.", nameof(webSocketUri));
+        }
+
         if (string.IsNullOrWhiteSpace(authenticationToken))
         {
             throw new ArgumentException("An authentication token is required.", nameof(authenticationToken));
         }
 
-        var pipe = new NamedPipeClientStream(
-            ".",
-            pipeName,
-            PipeDirection.InOut,
-            PipeOptions.Asynchronous);
+        var socket = new ClientWebSocket();
+        if (skipTlsValidationForDevelopment)
+        {
+#if NET5_0_OR_GREATER
+            socket.Options.RemoteCertificateValidationCallback = static (_, _, _, _) => true;
+#endif
+        }
+
         try
         {
-#if NET8_0_OR_GREATER
-            await pipe.ConnectAsync(timeoutMilliseconds, cancellationToken).ConfigureAwait(false);
-#else
-            await Task.Run(() => pipe.Connect(timeoutMilliseconds), cancellationToken).ConfigureAwait(false);
-#endif
-            var client = new AgenticNamedPipeClient(pipe);
+            await socket.ConnectAsync(webSocketUri, cancellationToken).ConfigureAwait(false);
+            var client = new AgenticWebSocketClient(socket);
             var authentication = await client.SendAsync(
                 new RemoteRequest
                 {
@@ -74,7 +78,7 @@ public sealed class AgenticNamedPipeClient : IAgenticRemoteClient
         }
         catch
         {
-            pipe.Dispose();
+            socket.Dispose();
             throw;
         }
     }
@@ -109,9 +113,21 @@ public sealed class AgenticNamedPipeClient : IAgenticRemoteClient
 
         _disposed = true;
         _lifetime.Cancel();
-        _writer.Dispose();
-        _pipe.Dispose();
-        FailPending(new ObjectDisposedException(nameof(AgenticNamedPipeClient)));
+        try
+        {
+            if (_socket.State is WebSocketState.Open or WebSocketState.CloseReceived)
+            {
+                _socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Closed", CancellationToken.None)
+                    .GetAwaiter()
+                    .GetResult();
+            }
+        }
+        catch (WebSocketException)
+        {
+        }
+
+        _socket.Dispose();
+        FailPending(new ObjectDisposedException(nameof(AgenticWebSocketClient)));
         if (!_insideTransportCallback.Value)
         {
             try
@@ -121,7 +137,7 @@ public sealed class AgenticNamedPipeClient : IAgenticRemoteClient
             catch (OperationCanceledException)
             {
             }
-            catch (IOException)
+            catch (WebSocketException)
             {
             }
             catch (ObjectDisposedException)
@@ -129,7 +145,6 @@ public sealed class AgenticNamedPipeClient : IAgenticRemoteClient
             }
         }
 
-        _reader.Dispose();
         _writeLock.Dispose();
         _lifetime.Dispose();
     }
@@ -140,7 +155,7 @@ public sealed class AgenticNamedPipeClient : IAgenticRemoteClient
     {
         if (_disposed)
         {
-            throw new ObjectDisposedException(nameof(AgenticNamedPipeClient));
+            throw new ObjectDisposedException(nameof(AgenticWebSocketClient));
         }
 
         var completion = new TaskCompletionSource<RemoteResponse>(
@@ -161,11 +176,23 @@ public sealed class AgenticNamedPipeClient : IAgenticRemoteClient
 
         try
         {
-            var json = JsonSerializer.Serialize(request, AgenticJson.Options);
+            var payload = JsonSerializer.SerializeToUtf8Bytes(request, AgenticJson.Options);
             await _writeLock.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
             {
-                await _writer.WriteLineAsync(json).ConfigureAwait(false);
+#if NET8_0_OR_GREATER
+                await _socket.SendAsync(
+                    payload,
+                    WebSocketMessageType.Text,
+                    endOfMessage: true,
+                    cancellationToken).ConfigureAwait(false);
+#else
+                await _socket.SendAsync(
+                    new ArraySegment<byte>(payload),
+                    WebSocketMessageType.Text,
+                    endOfMessage: true,
+                    cancellationToken).ConfigureAwait(false);
+#endif
             }
             finally
             {
@@ -185,16 +212,14 @@ public sealed class AgenticNamedPipeClient : IAgenticRemoteClient
     {
         try
         {
-            while (!cancellationToken.IsCancellationRequested)
+            while (!cancellationToken.IsCancellationRequested && _socket.State == WebSocketState.Open)
             {
-                var line = await _reader.ReadLineAsync().ConfigureAwait(false);
-                if (line is null)
+                var response = await ReceiveResponseAsync(cancellationToken).ConfigureAwait(false);
+                if (response is null)
                 {
-                    throw new EndOfStreamException("The AgenticUI pipe was closed.");
+                    throw new EndOfStreamException("The AgenticUI WebSocket was closed.");
                 }
 
-                var response = JsonSerializer.Deserialize<RemoteResponse>(line, AgenticJson.Options)
-                               ?? throw new InvalidDataException("The AgenticUI response was empty.");
                 if (response.Type == RemoteMessageTypes.Event && response.Event is not null)
                 {
                     RaiseEvent(response.Event);
@@ -209,7 +234,7 @@ public sealed class AgenticNamedPipeClient : IAgenticRemoteClient
             }
         }
         catch (Exception exception) when (
-            exception is IOException or ObjectDisposedException or EndOfStreamException or JsonException)
+            exception is WebSocketException or ObjectDisposedException or EndOfStreamException or JsonException)
         {
             if (!cancellationToken.IsCancellationRequested)
             {
@@ -217,6 +242,50 @@ public sealed class AgenticNamedPipeClient : IAgenticRemoteClient
                 RaiseConnectionFaulted(exception);
             }
         }
+    }
+
+    private async Task<RemoteResponse?> ReceiveResponseAsync(CancellationToken cancellationToken)
+    {
+        using var stream = new MemoryStream();
+        var buffer = new byte[8192];
+
+        while (true)
+        {
+#if NET8_0_OR_GREATER
+            var result = await _socket.ReceiveAsync(buffer, cancellationToken).ConfigureAwait(false);
+#else
+            var result = await _socket.ReceiveAsync(
+                new ArraySegment<byte>(buffer),
+                cancellationToken).ConfigureAwait(false);
+#endif
+            if (result.MessageType == WebSocketMessageType.Close)
+            {
+                return null;
+            }
+
+            if (result.MessageType != WebSocketMessageType.Text)
+            {
+                throw new InvalidDataException("Only JSON text messages are supported.");
+            }
+
+            var segment = new ArraySegment<byte>(buffer, 0, result.Count);
+#if NET8_0_OR_GREATER
+            await stream.WriteAsync(buffer.AsMemory(0, result.Count), cancellationToken).ConfigureAwait(false);
+#else
+            await stream.WriteAsync(segment.Array!, segment.Offset, segment.Count, cancellationToken)
+                .ConfigureAwait(false);
+#endif
+            if (result.EndOfMessage)
+            {
+                break;
+            }
+        }
+
+        stream.Position = 0;
+        return await JsonSerializer.DeserializeAsync<RemoteResponse>(
+            stream,
+            AgenticJson.Options,
+            cancellationToken).ConfigureAwait(false);
     }
 
     private void RaiseEvent(AgenticEvent message)
@@ -237,7 +306,6 @@ public sealed class AgenticNamedPipeClient : IAgenticRemoteClient
             }
             catch
             {
-                // A client observer must not terminate the transport receive loop.
             }
             finally
             {

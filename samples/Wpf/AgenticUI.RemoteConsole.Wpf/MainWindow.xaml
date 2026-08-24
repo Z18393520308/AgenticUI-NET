@@ -15,10 +15,31 @@
     </Grid.RowDefinitions>
 
     <WrapPanel Grid.Row="0" Margin="0,0,0,10">
-      <TextBlock Text="管道" VerticalAlignment="Center" Margin="0,0,6,0" />
+      <ComboBox x:Name="TransportCombo"
+                Width="128"
+                Margin="0,0,10,0"
+                SelectionChanged="TransportCombo_OnSelectionChanged">
+        <ComboBoxItem Content="本机 Pipe" IsSelected="True" />
+        <ComboBoxItem Content="Gateway (WSS)" />
+      </ComboBox>
+      <TextBlock x:Name="EndpointLabel" Text="管道" VerticalAlignment="Center" Margin="0,0,6,0" />
       <TextBox x:Name="PipeNameBox" Width="180" Text="AgenticUI.NET.Wpf" Margin="0,0,14,0" />
+      <Button x:Name="DiscoverButton"
+              Content="扫描 Gateway"
+              Padding="10,4"
+              Margin="0,0,8,0"
+              Visibility="Collapsed"
+              Click="Discover_OnClick" />
+      <ComboBox x:Name="DiscoveryCombo"
+                Width="260"
+                Margin="0,0,10,0"
+                Visibility="Collapsed"
+                SelectionChanged="DiscoveryCombo_OnSelectionChanged" />
       <TextBlock Text="令牌" VerticalAlignment="Center" Margin="0,0,6,0" />
-      <TextBox x:Name="TokenBox" Width="360" Margin="0,0,10,0" />
+      <TextBox x:Name="TokenBox"
+               Width="360"
+               Text="agenticui-dev-pipe-token-0123456789abcdef"
+               Margin="0,0,10,0" />
       <Button Content="连接" Padding="14,4" Margin="0,0,10,0" Click="Connect_OnClick" />
       <TextBlock x:Name="StatusText" Text="未连接" VerticalAlignment="Center" />
     </WrapPanel>

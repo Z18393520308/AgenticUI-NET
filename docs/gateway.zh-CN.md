@@ -39,10 +39,70 @@ server.Start();
 不要把令牌写进 `appsettings.json`、源码、日志或 Git。Gateway 的公网令牌必须与 Pipe 令牌
 不同，建议分别生成至少 32 个随机字节。
 
+### 本地调试默认令牌
+
+Workbench 与 Gateway 在 **Development** 环境下可使用固定的开发令牌（与
+`AgenticRemoteSecurity.DevelopmentPipeToken` / `DevelopmentGatewayToken` 一致），无需每次
+从状态栏复制 Pipe 令牌：
+
+| 用途 | 值 |
+| --- | --- |
+| Pipe 令牌（Workbench / Gateway `LocalAuthenticationToken`） | `agenticui-dev-pipe-token-0123456789abcdef` |
+| Gateway WSS 令牌（`AuthenticationToken`） | `agenticui-dev-gateway-token-0123456789abc` |
+| Gateway WSS 地址 | `wss://localhost:7443/agenticui` |
+
+设置环境变量 `AGENTICUI_PIPE_TOKEN` 可覆盖 Workbench 的 Pipe 令牌。Remote Console 启动时会
+自动填入上述默认值；传输方式可在界面选择「本机 Pipe」或「Gateway (WSS)」。生产环境必须使用
+随机令牌，勿使用上述默认值。
+
+### Remote Console 联调示例
+
+1. 启动 Workbench（WinForms 或 WPF）。
+2. 启动 Gateway（Development 配置已预填开发令牌）：
+
+```powershell
+dotnet dev-certs https --trust
+dotnet run --project src/AgenticUI.Gateway/AgenticUI.Gateway.csproj
+```
+
+3. 启动 Remote Console，传输选 **Gateway (WSS)**，地址与令牌保持默认，点「连接」即可枚举控件。
+
+确认 Gateway 已启动：浏览器或 curl 访问 `https://localhost:7443/healthz` 应返回
+`{"status":"ok",...}`。若 Remote Console 报 “Unable to connect”，通常是 Gateway 未运行。
+
+本机 Pipe 模式：
+
+代码连接 Gateway 示例：
+
+```csharp
+using AgenticUI.Remote;
+
+using var client = await AgenticWebSocketClient.ConnectAsync(
+    new Uri(AgenticRemoteSecurity.DevelopmentGatewayWebSocketUrl),
+    AgenticRemoteSecurity.DevelopmentGatewayToken,
+    clientName: "My Agent",
+    skipTlsValidationForDevelopment: true); // 仅本地调试 localhost
+
+var controls = await client.ListControlsAsync();
+await client.ExecuteAsync(new AgenticCommand
+{
+    ControlId = "login.submit",
+    Action = AgenticActions.Highlight
+});
+```
+
 ## 2. 配置 TLS 和 Gateway
 
 Kestrel 默认监听 `https://0.0.0.0:7443`。本地开发可使用受信任的开发证书；正式部署应使用
-由客户端信任、名称与服务器域名匹配的证书。下面只展示环境变量名，不应把真实值提交到仓库：
+由客户端信任、名称与服务器域名匹配的证书。本地 **Development** 可直接运行（`appsettings.Development.json`
+已预填与 Workbench 配对的开发令牌）：
+
+```powershell
+dotnet dev-certs https --trust
+dotnet run --project src/AgenticUI.Gateway/AgenticUI.Gateway.csproj
+```
+
+生产环境只展示环境变量名，不应把真实值提交到仓库：
 
 ```powershell
 $env:AgenticUI__AuthenticationToken = "<独立的 Gateway 随机令牌>"

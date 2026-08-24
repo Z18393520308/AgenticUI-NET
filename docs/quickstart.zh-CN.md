@@ -90,6 +90,25 @@ var token = server.AuthenticationToken;
 拥有本次会话的操作权限，不要写入源码、日志或版本控制。跨机器部署见
 [Gateway 安全部署指南](gateway.zh-CN.md)。
 
+本地调试可使用固定开发令牌；Remote Console 与 Workbench 已预填。通过 Gateway 连接示例：
+
+```csharp
+using AgenticUI;
+using AgenticUI.Remote;
+
+using var client = await AgenticWebSocketClient.ConnectAsync(
+    new Uri(AgenticRemoteSecurity.DevelopmentGatewayWebSocketUrl),
+    AgenticRemoteSecurity.DevelopmentGatewayToken,
+    clientName: "My AI Agent",
+    skipTlsValidationForDevelopment: true);
+
+await client.ExecuteAsync(new AgenticCommand
+{
+    ControlId = "login.submit",
+    Action = AgenticActions.Highlight
+});
+```
+
 ## 4. 发送语义命令
 
 ```csharp

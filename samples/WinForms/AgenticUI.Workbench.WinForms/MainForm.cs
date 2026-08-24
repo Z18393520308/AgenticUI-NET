@@ -32,7 +32,12 @@ public partial class MainForm : Form
             "AgenticUI.NET",
             "workbench-events.jsonl");
         _recorder = new AgenticLogRecorder(logPath);
-        _server = new AgenticNamedPipeServer(PipeName);
+        _server = new AgenticNamedPipeServer(
+            PipeName,
+            options: new AgenticNamedPipeServerOptions
+            {
+                AuthenticationToken = AgenticRemoteSecurity.ResolveDevelopmentPipeToken()
+            });
         _server.Start();
 
         BuildDemoLayout();

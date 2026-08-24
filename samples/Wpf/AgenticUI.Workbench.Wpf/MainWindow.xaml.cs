@@ -49,7 +49,12 @@ public partial class MainWindow : Window
             "AgenticUI.NET",
             "workbench-wpf-events.jsonl");
         _recorder = new AgenticLogRecorder(logPath);
-        _server = new AgenticNamedPipeServer(PipeName);
+        _server = new AgenticNamedPipeServer(
+            PipeName,
+            options: new AgenticNamedPipeServerOptions
+            {
+                AuthenticationToken = AgenticRemoteSecurity.ResolveDevelopmentPipeToken()
+            });
         _server.Start();
         _pipeStatusText = $"管道 {PipeName}";
         _tokenStatusText = $"令牌 {_server.AuthenticationToken}";

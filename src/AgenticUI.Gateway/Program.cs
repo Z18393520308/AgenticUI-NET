@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.RateLimiting;
 var builder = WebApplication.CreateBuilder(args);
 var options = new GatewayOptions();
 builder.Configuration.GetSection(GatewayOptions.SectionName).Bind(options);
+ApplyLocalDiscoveryDefaults(options, builder.Environment);
 
 if (args.Contains("--discover", StringComparer.OrdinalIgnoreCase))
 {
@@ -109,3 +110,23 @@ app.Map(options.WebSocketPath, async context =>
 }).RequireRateLimiting("gateway-connections");
 
 await app.RunAsync();
+
+static void ApplyLocalDiscoveryDefaults(GatewayOptions options, IWebHostEnvironment environment)
+{
+    if (options.Discovery.Enabled)
+    {
+        return;
+    }
+
+    if (environment.IsDevelopment())
+    {
+        options.Discovery.Enabled = true;
+        return;
+    }
+
+    if (Uri.TryCreate(options.Discovery.PublicWebSocketUrl, UriKind.Absolute, out var uri) &&
+        uri.Host is "localhost" or "127.0.0.1" or "::1")
+    {
+        options.Discovery.Enabled = true;
+    }
+}
