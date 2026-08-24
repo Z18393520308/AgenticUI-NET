@@ -7,19 +7,19 @@ AgenticUI.NET 为 WPF 与 Windows Forms 控件提供稳定语义 ID、事件广�
 
 ```powershell
 # WPF
-dotnet add package AgenticUI.Wpf --version 0.4.0
+dotnet add package AgenticUI.Wpf --version 0.5.0
 
 # WinForms
-dotnet add package AgenticUI.WinForms --version 0.4.0
+dotnet add package AgenticUI.WinForms --version 0.5.0
 
 # 可选：本机 Named Pipe 网关
-dotnet add package AgenticUI.Remote --version 0.4.0
+dotnet add package AgenticUI.Remote --version 0.5.0
 ```
 
 支持 .NET 8 和 .NET Framework 4.8。完整示例、快速开始、安全边界和授权说明请访问：
 
-`0.4.0` 新增可选 WSS/TLS Gateway、局域网发现、应用内鼠标动作，以及 WPF
-`AgenticCanvas` 和 WinForms `AgenticPanel` 智能画布控件。
+`0.5.0` 新增统一的 Pipe/WSS 客户端接口、WSS Gateway 客户端、UDP 自动发现，以及
+WPF/WinForms Remote Console 的 Gateway 联调入口。
 
 - [GitHub 仓库](https://github.com/Z18393520308/AgenticUI-NET)
 - [快速开始](https://github.com/Z18393520308/AgenticUI-NET/blob/main/docs/quickstart.zh-CN.md)

@@ -9,12 +9,12 @@
 
 - 项目名称：`AgenticUI.NET`
 - GitHub：<https://github.com/Z18393520308/AgenticUI-NET>
-- 当前稳定版：`0.4.0`
+- 当前稳定版：`0.5.0`
 - 当前默认分支：`main`
 - 技术栈：C#、WPF、Windows Forms、Named Pipe、JSONL、ASP.NET Core WebSocket/WSS
 - 目标框架：`.NET 8`、`.NET Framework 4.8`
 - 开源许可证：`AGPL-3.0-only`，另提供商业许可路径
-- 发布状态：四个 `0.4.0` NuGet 包、GitHub Release 和官网均已发布
+- 发布状态：四个 `0.5.0` NuGet 包、GitHub Release 和官网均已发布
 
 项目不是普通的主题或皮肤控件库。它的核心目标是让 AI Agent 能够：
 
@@ -82,14 +82,16 @@
 - WinForms 窗体前景、点击穿透高亮覆盖层。
 - 本机 Named Pipe 服务端和客户端。
 - 独立 `.NET 8` WSS/TLS Gateway，含双令牌、动作白名单、连接/速率/消息限制和审计。
-- 默认关闭、只发送公开服务元数据的 UDP 发现广播。
+- `IAgenticRemoteClient` 统一传输接口和 `AgenticWebSocketClient` WSS 客户端。
+- 默认关闭、只发送公开服务元数据的 UDP 发现广播，以及按需监听、校验和去重的
+  `AgenticGatewayDiscovery` 客户端。
 - 应用内鼠标移动、单击、双击、滚轮和拖拽；只允许已注册、可展示控件内的相对坐标，
   不得改成系统级 `SendInput`。
 - 256 位随机令牌认证。
 - `.NET 8` 下的 `CurrentUserOnly` 管道限制。
 - 请求 ID、并发请求匹配、独立事件接收循环。
 - WinForms / WPF Workbench 示例。
-- WinForms / WPF Remote Console。
+- WinForms / WPF Remote Console，支持 Pipe/WSS 切换和 UDP Gateway 自动发现。
 - WPF `DataGrid` / WinForms `DataGridView` 的行列分页读取、单元格读写、
   增删行、排序过滤、滚动定位、选择和单元格高亮。
 - GitHub Actions Windows 构建、测试和打包。

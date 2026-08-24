@@ -1,6 +1,6 @@
 # AgenticUI.NET 快速开始
 
-本指南以 `0.4.0` 为例。WPF 和 WinForms 应用均可使用 .NET 8；组件库同时兼容
+本指南以 `0.5.0` 为例。WPF 和 WinForms 应用均可使用 .NET 8；组件库同时兼容
 .NET Framework 4.8。
 
 ## 1. 安装包
@@ -8,21 +8,21 @@
 WPF：
 
 ```powershell
-dotnet add package AgenticUI.Wpf --version 0.4.0
-dotnet add package AgenticUI.Remote --version 0.4.0
+dotnet add package AgenticUI.Wpf --version 0.5.0
+dotnet add package AgenticUI.Remote --version 0.5.0
 ```
 
 WinForms：
 
 ```powershell
-dotnet add package AgenticUI.WinForms --version 0.4.0
-dotnet add package AgenticUI.Remote --version 0.4.0
+dotnet add package AgenticUI.WinForms --version 0.5.0
+dotnet add package AgenticUI.Remote --version 0.5.0
 ```
 
 只使用协议、注册表、日志和命令分发时安装：
 
 ```powershell
-dotnet add package AgenticUI.Core --version 0.4.0
+dotnet add package AgenticUI.Core --version 0.5.0
 ```
 
 ## 2. 为控件添加语义身份
@@ -85,7 +85,7 @@ server.Start();
 var token = server.AuthenticationToken;
 ```
 
-稳定版 `0.4.0` 默认只使用本机 Named Pipe，不监听 TCP。可选的独立
+稳定版 `0.5.0` 默认只使用本机 Named Pipe，不监听 TCP。可选的独立
 `AgenticUI.Gateway` 使用 WSS/TLS 转发到本机管道，桌面应用本身仍不监听网络端口。连接令牌
 拥有本次会话的操作权限，不要写入源码、日志或版本控制。跨机器部署见
 [Gateway 安全部署指南](gateway.zh-CN.md)。

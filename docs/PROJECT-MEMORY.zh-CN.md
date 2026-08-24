@@ -58,11 +58,12 @@
 - 本机 Named Pipe JSONL 协议，默认随机生成 256 位令牌。
 - 独立 `.NET 8` `AgenticUI.Gateway`：WSS/TLS 到本机 Named Pipe 转发，使用两把不同令牌，
   并带连接数、速率、消息大小、Origin 和动作白名单限制。
-- 默认关闭的 UDP 单向发现广播；发现报文不含令牌、Pipe 名称和控件数据。
+- `AgenticUI.Remote` 提供统一的 `IAgenticRemoteClient`、Named Pipe/WSS 客户端和按需 UDP
+  Gateway 自动发现；发现报文不含令牌、Pipe 名称和控件数据。
 - WPF/WinForms 应用内鼠标动作：移动、单击、双击、滚轮和拖拽。只向本进程窗口发送消息，
   使用控件内相对坐标，不移动系统指针；Gateway 默认不放行。
 - `.NET 8` 使用 `CurrentUserOnly`，并支持请求 ID、并发响应匹配和独立事件接收循环。
-- WinForms/WPF Workbench 与 Remote Console 演示。
+- WinForms/WPF Workbench 与 Remote Console 演示；Remote Console 可切换 Pipe/WSS 并自动发现 Gateway。
 - Windows GitHub Actions 构建、测试、打包、NuGet 可信发布和 GitHub Pages 官网部署。
 
 ## 5. 安全与隐私红线
@@ -85,8 +86,8 @@
 
 ## 7. 当前发布基线
 
-- 首个稳定版为 `v0.2.0`，当前稳定版为 `v0.4.0`。
-- NuGet 已公开发布 `AgenticUI.Core` 、`AgenticUI.Remote`、`AgenticUI.Wpf` 和 `AgenticUI.WinForms` 的 `0.4.0` 版本及符号包。
+- 首个稳定版为 `v0.2.0`，当前稳定版为 `v0.5.0`。
+- NuGet 已公开发布 `AgenticUI.Core` 、`AgenticUI.Remote`、`AgenticUI.Wpf` 和 `AgenticUI.WinForms` 的 `0.5.0` 版本及符号包。
 - GitHub Release 包含四个主包和四个符号包。
 - 发布工作流为 `.github/workflows/release.yml`；NuGet 可信发布策略必须与该文件名匹配。
 - 发布作业使用 PowerShell 逐个枚举包文件，不要再将带引号的 `*.nupkg` 直接传给 `dotnet nuget push`。

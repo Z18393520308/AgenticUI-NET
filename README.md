@@ -7,7 +7,7 @@
 AgenticUI.NET 是一套面向 AI Agent 的桌面 UI 协议、组件库和控件库。它让 WPF 与
 Windows Forms 应用中的控件可以被稳定识别、观察、高亮、记录和通过本机语义命令触发。
 
-> 当前稳定版为 `0.4.0`，默认仍只提供本机 Named Pipe。可选的
+> 当前稳定版为 `0.5.0`，默认仍只提供本机 Named Pipe。可选的
 > `AgenticUI.Gateway` 必须显式部署，并且只接受 WSS/TLS；UDP 仅用于可选发现。
 
 ![AgenticUI.NET 语义控件与事件时间线演示](docs/images/agenticui-overview.png)
@@ -17,15 +17,15 @@ Windows Forms 应用中的控件可以被稳定识别、观察、高亮、记录
 WPF：
 
 ```powershell
-dotnet add package AgenticUI.Wpf --version 0.4.0
-dotnet add package AgenticUI.Remote --version 0.4.0
+dotnet add package AgenticUI.Wpf --version 0.5.0
+dotnet add package AgenticUI.Remote --version 0.5.0
 ```
 
 WinForms：
 
 ```powershell
-dotnet add package AgenticUI.WinForms --version 0.4.0
-dotnet add package AgenticUI.Remote --version 0.4.0
+dotnet add package AgenticUI.WinForms --version 0.5.0
+dotnet add package AgenticUI.Remote --version 0.5.0
 ```
 
 只使用协议、注册表、日志和命令分发时安装 `AgenticUI.Core`。完整步骤见
@@ -47,6 +47,7 @@ dotnet add package AgenticUI.Remote --version 0.4.0
 - 用户操作录制和语义命令回放
 - 本机 Named Pipe 网关及可视化 WinForms / WPF Workbench 与 Remote Console
 - 独立、默认不启动的 WSS/TLS Gateway，安全转发到本机 Named Pipe
+- 统一的 Pipe/WSS 客户端接口、WebSocket 客户端以及 Remote Console Gateway 联调入口
 - 默认关闭的 UDP 局域网发现广播（不承载认证和控制命令）
 - 原生外观，以及可选现代主题
 
@@ -266,7 +267,7 @@ await client.ExecuteAsync(new AgenticCommand
 
 ## NuGet 包
 
-`0.4.0` 提供四个包：
+`0.5.0` 提供四个包：
 
 - [`AgenticUI.Core`](https://www.nuget.org/packages/AgenticUI.Core)
 - [`AgenticUI.Remote`](https://www.nuget.org/packages/AgenticUI.Remote)

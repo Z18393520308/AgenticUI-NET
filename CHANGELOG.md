@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+## 0.5.0
+
+- `AgenticUI.Remote` 新增统一的 `IAgenticRemoteClient` 抽象和 `AgenticWebSocketClient`，
+  AI 控制端可用同一套接口连接本机 Named Pipe 或远程 WSS Gateway。
+- 新增 `AgenticGatewayDiscovery`，可按需监听并校验 Gateway 的 UDP 局域网发现广播；发现过程
+  支持超时、去重和取消，UDP 仍不承载令牌、认证或控制命令。
+- WPF 与 WinForms Remote Console 新增 Pipe / Gateway 传输选择、WSS 地址连接和 UDP 自动发现，
+  可直接联调跨机器安全访问链路。
+- Workbench、Gateway 和 Remote Console 增加一致的本地 Development 配置与启动说明；生产环境
+  仍必须使用随机独立令牌、可信 TLS 证书和显式动作白名单。
+- 补充 WebSocket 客户端、Gateway 发现、开发环境配置和安全校验文档及回归测试。
+
 ## 0.4.0
 
 - 新增独立 `.NET 8` `AgenticUI.Gateway`，通过 WSS/TLS 将远程语义请求安全转发到本机
