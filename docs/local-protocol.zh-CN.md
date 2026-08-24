@@ -1,6 +1,8 @@
 # AgenticUI.NET 本机协议
 
 传输使用本机 Named Pipe，默认管道名为 `AgenticUI.NET`。每条消息是一行 UTF-8 JSON。
+该端点不应跨机器暴露。跨机器访问由独立 `AgenticUI.Gateway` 通过 WSS/TLS 转发，见
+[Gateway 安全部署指南](gateway.zh-CN.md)。
 
 ## 认证
 
@@ -108,6 +110,29 @@
 `getChecked` 成功后，响应里的 `result.control.state.checked` 为是否选中。
 `getValue` 成功后，响应里的 `result.control.state.value` 为当前值；日期接受 ISO-8601 或
 `yyyy-MM-dd`，数值控件接受 JSON 数字。
+
+## 应用内鼠标动作
+
+鼠标动作只作用于指定的、已注册的 AgenticUI 控件，不使用系统级鼠标注入。坐标均为目标
+控件内部 `0～1` 的相对值，因此不会因 DPI 或窗口尺寸变化而直接失效：
+
+```json
+{"controlId":"editor.canvas","action":"mouseMove","arguments":{"xRatio":0.5,"yRatio":0.5}}
+{"controlId":"editor.canvas","action":"mouseClick","arguments":{"xRatio":0.5,"yRatio":0.5,"button":"left"}}
+{"controlId":"editor.canvas","action":"mouseDoubleClick","arguments":{"xRatio":0.5,"yRatio":0.5}}
+{"controlId":"editor.canvas","action":"mouseWheel","arguments":{"xRatio":0.5,"yRatio":0.5,"delta":-120}}
+{"controlId":"editor.canvas","action":"mouseDrag","arguments":{"startXRatio":0.2,"startYRatio":0.3,"endXRatio":0.8,"endYRatio":0.7,"button":"left","steps":12}}
+```
+
+- `button` 可选 `left`、`right`、`middle`，默认 `left`。
+- `mouseWheel.delta` 范围为 `-1200～1200` 且不能为 `0`，默认 `120`。
+- `mouseDrag.steps` 范围为 `1～100`，默认 `10`；四个起止坐标必须提供。
+- 单击等普通业务操作应优先使用 `click` 等语义动作，鼠标动作主要用于画布和自定义绘图区域。
+- 控件、坐标点或拖拽路径被遮挡、离开活动模态窗口、隐藏或禁用时，动作会被拒绝。
+
+WSS Gateway 默认动作白名单不包含这些低层动作。需要跨机器使用时应逐项授权，并继续通过
+宿主 `IAgenticCommandAuthorizer` 检查。
+
 ## 事件广播
 
 连接的客户端会收到事件消息：

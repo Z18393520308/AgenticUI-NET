@@ -94,6 +94,36 @@ internal static class WinFormsDisplayability
         return ReferenceEquals(form, modal);
     }
 
+    public static bool IsPointInteractable(Control control, Point clientPoint)
+    {
+        if (!IsDisplayable(control) ||
+            clientPoint.X < 0 ||
+            clientPoint.Y < 0 ||
+            clientPoint.X >= control.ClientSize.Width ||
+            clientPoint.Y >= control.ClientSize.Height)
+        {
+            return false;
+        }
+
+        var screenPoint = control.PointToScreen(clientPoint);
+        var hwnd = WindowFromPoint(new POINT { X = screenPoint.X, Y = screenPoint.Y });
+        if (hwnd == IntPtr.Zero)
+        {
+            return false;
+        }
+
+        GetWindowThreadProcessId(hwnd, out var processId);
+        if (processId != (uint)Process.GetCurrentProcess().Id)
+        {
+            return false;
+        }
+
+        var hit = Control.FromChildHandle(hwnd) ?? Control.FromHandle(hwnd);
+        return hit is not null
+            ? IsAssociated(control, hit)
+            : IsHandleOwnedByForm(control.Handle, hwnd);
+    }
+
     private static Form? GetTopModalForm()
     {
         Form? topModal = null;

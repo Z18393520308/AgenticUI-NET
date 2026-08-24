@@ -67,8 +67,10 @@ server.Start();
 var token = server.AuthenticationToken;
 ```
 
-当前网关只使用本机 Named Pipe，不监听 TCP。连接令牌拥有本次会话的操作权限，不要写入
-源码、日志或版本控制。
+稳定版 `0.3.0` 默认只使用本机 Named Pipe，不监听 TCP。源码中的可选独立
+`AgenticUI.Gateway` 使用 WSS/TLS 转发到本机管道，桌面应用本身仍不监听网络端口。连接令牌
+拥有本次会话的操作权限，不要写入源码、日志或版本控制。跨机器部署见
+[Gateway 安全部署指南](gateway.zh-CN.md)。
 
 ## 4. 发送语义命令
 
@@ -110,7 +112,28 @@ await client.ExecuteAsync(new AgenticCommand
 ```
 
 `row` 使用当前排序、过滤后的视图行号。完整表格动作和参数见
-[本机协议](local-protocol.zh-CN.md#表格动作)。
+[DataGrid 使用指南](datagrid.zh-CN.md)。
+
+画布、自定义绘图和 CAD 视图还可以使用仅限当前应用界面的鼠标动作：
+
+```csharp
+await client.ExecuteAsync(new AgenticCommand
+{
+    ControlId = "editor.canvas",
+    Action = AgenticActions.MouseDrag,
+    Arguments =
+    {
+        ["startXRatio"] = 0.2,
+        ["startYRatio"] = 0.3,
+        ["endXRatio"] = 0.8,
+        ["endYRatio"] = 0.7
+    }
+});
+```
+
+鼠标坐标是控件内 `0～1` 的相对值，不移动系统真实指针，也不能操作其他软件。普通按钮等标准
+控件仍应优先使用 `Click` 等语义动作。完整参数和安全限制见
+[本机协议的应用内鼠标动作](local-protocol.zh-CN.md#应用内鼠标动作)。
 
 ## 5. 开启本地审计
 
@@ -130,5 +153,7 @@ using var audit = new AgenticLogRecorder(
 
 - [架构说明](architecture.zh-CN.md)
 - [本机协议](local-protocol.zh-CN.md)
+- [Gateway 安全部署指南](gateway.zh-CN.md)
+- [DataGrid 使用指南](datagrid.zh-CN.md)
 - [安全策略](../SECURITY.md)
 - [授权说明](../LICENSING.md)

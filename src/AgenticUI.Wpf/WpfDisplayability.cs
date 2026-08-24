@@ -128,6 +128,46 @@ internal static class WpfDisplayability
         return activeEnabled ?? lastEnabled;
     }
 
+    public static bool IsPointInteractable(FrameworkElement element, Point elementPoint)
+    {
+        if (!IsDisplayable(element) ||
+            elementPoint.X < 0 ||
+            elementPoint.Y < 0 ||
+            elementPoint.X >= element.ActualWidth ||
+            elementPoint.Y >= element.ActualHeight)
+        {
+            return false;
+        }
+
+        var window = Window.GetWindow(element);
+        if (window is null)
+        {
+            return false;
+        }
+
+        Point windowPoint;
+        try
+        {
+            windowPoint = element.TranslatePoint(elementPoint, window);
+        }
+        catch (InvalidOperationException)
+        {
+            return false;
+        }
+
+        IInputElement? hitElement;
+        try
+        {
+            hitElement = window.InputHitTest(windowPoint);
+        }
+        catch (InvalidOperationException)
+        {
+            return false;
+        }
+
+        return hitElement is DependencyObject hit && IsAssociated(element, hit);
+    }
+
     private static bool IsOnInactiveTabItem(DependencyObject element)
     {
         for (DependencyObject? current = element; current is not null;)

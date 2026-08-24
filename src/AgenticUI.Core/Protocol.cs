@@ -63,6 +63,11 @@ public static class AgenticActions
     public const string Collapse = "collapse";
     public const string OpenDropDown = "openDropDown";
     public const string CloseDropDown = "closeDropDown";
+    public const string MouseMove = "mouseMove";
+    public const string MouseClick = "mouseClick";
+    public const string MouseDoubleClick = "mouseDoubleClick";
+    public const string MouseWheel = "mouseWheel";
+    public const string MouseDrag = "mouseDrag";
 }
 
 public static class AgenticEvents

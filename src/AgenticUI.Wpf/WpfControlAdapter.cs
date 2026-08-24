@@ -183,6 +183,13 @@ internal sealed class WpfControlAdapter : IAgenticControl
                 case AgenticActions.ClearHighlight:
                     RemoveHighlight();
                     break;
+                case AgenticActions.MouseMove:
+                case AgenticActions.MouseClick:
+                case AgenticActions.MouseDoubleClick:
+                case AgenticActions.MouseWheel:
+                case AgenticActions.MouseDrag:
+                    WpfMouseInput.Execute(_element, command);
+                    break;
                 case AgenticActions.Click when _element is Button button:
                     var peer = new ButtonAutomationPeer(button);
                     ((IInvokeProvider)peer.GetPattern(PatternInterface.Invoke)).Invoke();
@@ -514,7 +521,12 @@ internal sealed class WpfControlAdapter : IAgenticControl
         {
             AgenticActions.Focus,
             AgenticActions.Highlight,
-            AgenticActions.ClearHighlight
+            AgenticActions.ClearHighlight,
+            AgenticActions.MouseMove,
+            AgenticActions.MouseClick,
+            AgenticActions.MouseDoubleClick,
+            AgenticActions.MouseWheel,
+            AgenticActions.MouseDrag
         };
         if (_element is Button or ToggleButton or TextBox or PasswordBox)
         {

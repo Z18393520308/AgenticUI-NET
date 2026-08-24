@@ -203,6 +203,13 @@ internal sealed class WinFormsControlAdapter : IAgenticControl
                 case AgenticActions.ClearHighlight:
                     RemoveHighlight();
                     break;
+                case AgenticActions.MouseMove:
+                case AgenticActions.MouseClick:
+                case AgenticActions.MouseDoubleClick:
+                case AgenticActions.MouseWheel:
+                case AgenticActions.MouseDrag:
+                    WinFormsMouseInput.Execute(_control, command);
+                    break;
                 case AgenticActions.Click when _control is Button button:
                     button.PerformClick();
                     break;
@@ -564,7 +571,12 @@ internal sealed class WinFormsControlAdapter : IAgenticControl
         {
             AgenticActions.Focus,
             AgenticActions.Highlight,
-            AgenticActions.ClearHighlight
+            AgenticActions.ClearHighlight,
+            AgenticActions.MouseMove,
+            AgenticActions.MouseClick,
+            AgenticActions.MouseDoubleClick,
+            AgenticActions.MouseWheel,
+            AgenticActions.MouseDrag
         };
         if (_control is Button or CheckBox or RadioButton or TextBoxBase) actions.Add(AgenticActions.Click);
         if (_control is TextBoxBase)

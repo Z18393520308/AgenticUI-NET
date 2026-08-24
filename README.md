@@ -7,7 +7,8 @@
 AgenticUI.NET 是一套面向 AI Agent 的桌面 UI 协议、组件库和控件库。它让 WPF 与
 Windows Forms 应用中的控件可以被稳定识别、观察、高亮、记录和通过本机语义命令触发。
 
-> 当前稳定版为 `0.3.0`。网络远程控制默认不开放，只提供本机命名管道。
+> 当前稳定版为 `0.3.0`，默认仍只提供本机 Named Pipe。源码中的下一阶段
+> `AgenticUI.Gateway` 必须显式部署，并且只接受 WSS/TLS；UDP 仅用于可选发现。
 
 ![AgenticUI.NET 语义控件与事件时间线演示](docs/images/agenticui-overview.png)
 
@@ -38,11 +39,14 @@ dotnet add package AgenticUI.Remote --version 0.3.0
 - 无需替换原生控件的附加属性/Binder 接入
 - 按钮、输入框、单选框、复选框和下拉列表
 - DataGrid 行列读取、单元格读写、增删行、排序过滤、滚动和单元格高亮
+- 应用界面内的鼠标移动、单击、双击、滚轮和拖拽，不移动系统真实指针
 - 控件描边、步骤编号和提示气泡
 - 语义事件广播；详细模式可包含按下、松开和焦点事件
 - 本地 JSONL 审计日志，敏感文本默认脱敏且可配置
 - 用户操作录制和语义命令回放
 - 本机 Named Pipe 网关及可视化 WinForms / WPF Workbench 与 Remote Console
+- 独立、默认不启动的 WSS/TLS Gateway，安全转发到本机 Named Pipe
+- 默认关闭的 UDP 局域网发现广播（不承载认证和控制命令）
 - 原生外观，以及可选现代主题
 
 ## 项目结构
@@ -51,6 +55,7 @@ dotnet add package AgenticUI.Remote --version 0.3.0
 src/
 ├── AgenticUI.Core       # 协议、注册表、事件总线、日志、录制与回放
 ├── AgenticUI.Remote     # 本机命名管道服务端与客户端
+├── AgenticUI.Gateway    # 独立 WSS/TLS 到 Named Pipe 转发进程（.NET 8）
 ├── AgenticUI.Wpf        # WPF 控件、附加属性和 Adorner 高亮层
 └── AgenticUI.WinForms   # WinForms 控件、Binder 和高亮层
 samples/
@@ -62,11 +67,13 @@ samples/
     └── AgenticUI.RemoteConsole.Wpf      # 独立远程控制台
 tests/
 ├── AgenticUI.Core.Tests
-└── AgenticUI.WinForms.Tests
+├── AgenticUI.WinForms.Tests
+└── AgenticUI.Gateway.Tests
 ```
 
 更完整的设计见 [架构说明](docs/architecture.zh-CN.md) 和
-[本机协议](docs/local-protocol.zh-CN.md)。由其他 AI 或开发者继续维护时，请先阅读
+[本机协议](docs/local-protocol.zh-CN.md)。DataGrid 详细示例见
+[DataGrid 使用指南](docs/datagrid.zh-CN.md)。由其他 AI 或开发者继续维护时，请先阅读
 [AI 开发交接文档](docs/AI-HANDOFF.zh-CN.md)。
 
 ## WPF 快速接入
@@ -214,7 +221,43 @@ await client.ExecuteAsync(new AgenticCommand
 
 表格还支持 `GetRow`、`GetColumns`、`ScrollToRow`、`AddRow`、`DeleteRow`、
 `SortByColumn`、`FilterByColumn` 和 `SelectCell`。完整参数见
-[本机协议](docs/local-protocol.zh-CN.md#表格动作)。
+[DataGrid 使用指南](docs/datagrid.zh-CN.md)。
+
+## 跨机器安全访问
+
+不要让 WPF/WinForms 应用直接监听 TCP 或 UDP 控制端口。需要跨机器访问时，单独部署
+`AgenticUI.Gateway`：远程客户端通过 WSS/TLS 连接 Gateway，Gateway 再使用另一把令牌连接
+本机 Named Pipe。Gateway 默认只允许读取和高亮等低风险动作，写操作需要显式加入白名单。
+
+UDP 发现默认关闭；开启后只广播服务名和 WSS 地址，不包含令牌、管道名或控制命令。部署、
+证书、策略与协议示例见 [Gateway 安全部署指南](docs/gateway.zh-CN.md)。
+
+## 应用内鼠标动作
+
+对于画布、流程图、CAD 视图等不能完全抽象为普通控件的区域，可以先把该区域注册为
+AgenticUI 控件，再使用 `MouseMove`、`MouseClick`、`MouseDoubleClick`、`MouseWheel` 和
+`MouseDrag`。坐标是目标控件内部的 `0～1` 相对坐标：
+
+```csharp
+await client.ExecuteAsync(new AgenticCommand
+{
+    ControlId = "editor.canvas",
+    Action = AgenticActions.MouseDrag,
+    Arguments =
+    {
+        ["startXRatio"] = 0.2,
+        ["startYRatio"] = 0.3,
+        ["endXRatio"] = 0.8,
+        ["endYRatio"] = 0.7,
+        ["button"] = "left",
+        ["steps"] = 12
+    }
+});
+```
+
+这些动作只向当前应用自己的窗口句柄发送消息，不移动系统鼠标，也不能点击桌面、任务栏或
+其他软件。目标控件、起止点和拖拽路径必须保持可见且可交互；一般按钮仍应优先使用稳定的
+语义动作 `Click`。WSS Gateway 默认不放行鼠标动作，需要部署者逐项加入动作白名单。
 
 ## NuGet 包
 
@@ -260,8 +303,8 @@ AgenticUI.NET 采用双许可证模式：
 [商业许可模板](COMMERCIAL-LICENSE-TEMPLATE.md) 与 [CLA 模板](CLA-TEMPLATE.md)，正式使用前必须
 填写许可方法定信息并经过法律审查。
 
-社区版现有能力和规划中的企业服务边界见 [EDITIONS.md](EDITIONS.md)。远程身份认证、网络传输、
-集中审计和企业策略属于后续商业能力方向，不代表当前版本已经提供或承诺发布日期。
+社区版现有能力和规划中的企业服务边界见 [EDITIONS.md](EDITIONS.md)。独立 Gateway 提供基础
+WSS 转发；企业身份、集中审计、设备管理和组织级策略仍属于后续服务方向。
 
 ## 参与项目
 

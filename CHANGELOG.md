@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+- 新增独立 `.NET 8` `AgenticUI.Gateway`，通过 WSS/TLS 将远程语义请求安全转发到本机
+  Named Pipe；WPF/WinForms 宿主仍不监听网络端口。
+- Gateway 使用相互独立的公网与本机令牌，并提供最大连接数、单连接速率、消息大小、
+  Origin 和动作白名单限制以及不含参数/令牌的结构化审计日志。
+- 新增默认关闭的 UDP 局域网发现广播，只发布公开 WSS 服务元数据，不接收认证和控制命令。
+- 新增 Gateway 配置校验、安全策略和发现报文回归测试及部署文档。
+- WPF/WinForms 新增仅限当前应用界面的 `mouseMove`、`mouseClick`、`mouseDoubleClick`、
+  `mouseWheel` 和 `mouseDrag`；使用控件内相对坐标，不移动系统真实指针，并拒绝越界、遮挡、
+  禁用或非活动模态窗口中的输入。
+
 ## 0.3.0
 
 - WPF `DataGrid` 与 WinForms `DataGridView` 新增行/列分页读取、滚动定位、增删行、

@@ -2,8 +2,8 @@
 
 > 本文档的目标读者是接手本仓库继续开发的 AI 编程代理。开始工作前请完整阅读本文，
 > 并先阅读最新的 `docs/PROJECT-MEMORY.zh-CN.md`，然后阅读 `README.md`、
-> `docs/architecture.zh-CN.md`、
-> `docs/local-protocol.zh-CN.md` 和 `SECURITY.md`。
+> `docs/architecture.zh-CN.md`、`docs/local-protocol.zh-CN.md`、
+> `docs/gateway.zh-CN.md` 和 `SECURITY.md`。
 
 ## 1. 项目身份
 
@@ -11,7 +11,7 @@
 - GitHub：<https://github.com/Z18393520308/AgenticUI-NET>
 - 当前稳定版：`0.3.0`
 - 当前默认分支：`main`
-- 技术栈：C#、WPF、Windows Forms、Named Pipe、JSONL
+- 技术栈：C#、WPF、Windows Forms、Named Pipe、JSONL、ASP.NET Core WebSocket/WSS
 - 目标框架：`.NET 8`、`.NET Framework 4.8`
 - 开源许可证：`AGPL-3.0-only`，另提供商业许可路径
 - 发布状态：四个 `0.3.0` NuGet 包、GitHub Release 和官网均已发布
@@ -45,7 +45,9 @@
 
 - 首版同时支持 `.NET 8` 和 `.NET Framework 4.8`。
 - 同时提供替换式 AgenticUI 控件和原生控件附加接入。
-- 远程控制首版只做本机，不开放 TCP、局域网或互联网。
+- 桌面应用的默认远程控制只做本机 Named Pipe，不直接开放 TCP、局域网或互联网。
+- 跨机器控制只能通过独立 `AgenticUI.Gateway` 的 WSS/TLS 转发；公网令牌和 Pipe 令牌必须不同。
+- UDP 只能作为默认关闭的局域网发现服务，不能承载认证、命令或事件。
 - 控制端可能是 AI Agent、调试控制台、企业服务端或另一客户端。
 - 默认记录语义事件；详细模式才记录按下、松开、焦点等底层事件。
 - 控件 ID 使用“手动稳定 ID + 自动临时 ID”。
@@ -79,6 +81,10 @@
 - WPF `AdornerLayer` 高亮。
 - WinForms 窗体前景、点击穿透高亮覆盖层。
 - 本机 Named Pipe 服务端和客户端。
+- 独立 `.NET 8` WSS/TLS Gateway，含双令牌、动作白名单、连接/速率/消息限制和审计。
+- 默认关闭、只发送公开服务元数据的 UDP 发现广播。
+- 应用内鼠标移动、单击、双击、滚轮和拖拽；只允许已注册、可展示控件内的相对坐标，
+  不得改成系统级 `SendInput`。
 - 256 位随机令牌认证。
 - `.NET 8` 下的 `CurrentUserOnly` 管道限制。
 - 请求 ID、并发请求匹配、独立事件接收循环。
@@ -225,7 +231,8 @@ docs/
   - 使用并发字典匹配响应。
   - 通过 `EventReceived` 暴露广播事件。
 
-默认管道名为 `AgenticUI.NET`。不要在没有新安全设计的情况下加入 TCP 服务。
+默认管道名为 `AgenticUI.NET`。不要让 WPF/WinForms 宿主直接监听 TCP；跨机器访问只能走
+独立 Gateway 的 WSS/TLS 端点。不要为 UDP 添加认证或命令处理分支。
 
 ### 5.3 `AgenticUI.Wpf`
 

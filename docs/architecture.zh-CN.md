@@ -40,6 +40,15 @@ WPF 使用 `AdornerLayer` 绘制独立高亮，不改变按钮的按下状态。
 并发响应与广播事件。服务位于被控应用进程内，因此所有语义动作最终由对应 UI
 Dispatcher/消息线程执行。
 
+### 可选网络网关
+
+`AgenticUI.Gateway` 是独立 `.NET 8` 进程，不进入 WPF/WinForms 应用进程。它只在 TLS 上接受
+WebSocket 请求，使用独立的 Gateway 令牌认证远程客户端，经连接数、速率和动作白名单检查后，
+再用另一把本机令牌连接 `AgenticUI.Remote` Named Pipe。桌面应用继续只暴露本机管道。
+
+可选 UDP 服务是单向广播器，仅公布 WSS 地址和非敏感服务元数据。控制面始终走 TCP/TLS
+体系，UDP 不参与认证、命令和事件传输。
+
 ## 身份
 
 业务代码应显式提供长期稳定 ID，例如 `settings.notifications.email`。如果没有提供，
@@ -61,7 +70,10 @@ Dispatcher/消息线程执行。
 
 ## 安全边界
 
-- 不监听 TCP，不默认暴露局域网或互联网端口。
+- WPF/WinForms 控件库和 `AgenticUI.Remote` 不监听 TCP，不默认暴露局域网或互联网端口。
+- 独立 Gateway 默认不随桌面应用启动，配置不完整时拒绝启动，只接受 WSS/TLS。
+- Gateway 的公网令牌与本机 Pipe 令牌必须不同；动作还受白名单和宿主授权器双重约束。
+- UDP 发现默认关闭且只发送公开元数据，不接收控制命令。
 - 未认证连接不能枚举控件、订阅事件或执行命令。
 - 认证令牌使用密码学安全随机数生成，并以固定时间方式比较。
 - `.NET 8` 服务使用 `CurrentUserOnly` 管道选项，把连接限制在当前操作系统用户。
@@ -72,7 +84,7 @@ Dispatcher/消息线程执行。
 
 ## 后续演进
 
-1. Windows 进程签名/身份校验与可轮换短期令牌。
+1. Gateway 的可轮换短期令牌、mTLS/OIDC 与设备身份。
 2. 控件状态主动推送和远程命令取消。
 3. WPF/WinForms 视觉自动化测试及无障碍树映射。
 4. Web Components/React 适配层。
