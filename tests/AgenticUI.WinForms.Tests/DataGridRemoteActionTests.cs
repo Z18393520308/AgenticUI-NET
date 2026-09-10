@@ -11,11 +11,11 @@ public sealed class DataGridRemoteActionTests
     {
         RunSta(async () =>
         {
-            using var form = new Form { ShowInTaskbar = false, Location = new Point(-2000, -2000) };
+            using var form = new Form { ShowInTaskbar = false, Location = new Point(20, 20) };
             var grid = new AgenticDataGridView
             {
                 AgenticId = "grid.extended",
-                AllowUserToAddRows = false,
+                AllowUserToAddRows = true,
                 Width = 400,
                 Height = 200
             };
@@ -72,7 +72,7 @@ public sealed class DataGridRemoteActionTests
             Assert.True((await Dispatch(dispatcher, AgenticActions.ClearHighlight)).Succeeded);
 
             Assert.True((await Dispatch(dispatcher, AgenticActions.DeleteRow, ("row", 2))).Succeeded);
-            Assert.Equal(2, grid.Rows.Count);
+            Assert.Equal(2, grid.Rows.Cast<DataGridViewRow>().Count(item => !item.IsNewRow));
         });
     }
 

@@ -97,12 +97,15 @@ public sealed class AgenticControlDescriptor
     public bool IsSensitive { get; set; }
     public bool IsEnabled { get; set; } = true;
     public IReadOnlyList<string> Actions { get; set; } = Array.Empty<string>();
+    public IReadOnlyList<string> Capabilities { get; set; } = Array.Empty<string>();
     public IReadOnlyDictionary<string, object?> State { get; set; } =
         new ReadOnlyDictionary<string, object?>(new Dictionary<string, object?>());
 }
 
 public sealed class AgenticEvent
 {
+    /// <summary>事件生成时捕获敏感标记，控件销毁后仍可安全脱敏。</summary>
+    public bool IsSensitive { get; set; }
     public long Sequence { get; set; }
     public string ControlId { get; set; } = "";
     public string Name { get; set; } = "";
@@ -114,6 +117,9 @@ public sealed class AgenticEvent
 
 public sealed class AgenticCommand
 {
+    /// <summary>仅由本机宿主赋值，不接受网络 JSON 中的会话身份。</summary>
+    [JsonIgnore]
+    public string? SessionId { get; set; }
     public string RequestId { get; set; } = Guid.NewGuid().ToString("N");
     public string ControlId { get; set; } = "";
     public string Action { get; set; } = "";

@@ -7,6 +7,8 @@ public sealed class AgenticEventBus
     private long _sequence;
 
     public static AgenticEventBus Default { get; } = new();
+    /// <summary>订阅者异常只报告给宿主，不改变已执行动作的结果。</summary>
+    public event Action<Exception>? SubscriberFaulted;
 
     public IDisposable Subscribe(Func<AgenticEvent, ValueTask> handler)
     {
@@ -59,7 +61,15 @@ public sealed class AgenticEventBus
 
         foreach (var handler in handlers)
         {
-            await handler(message).ConfigureAwait(false);
+            try { await handler(message).ConfigureAwait(false); }
+            catch (Exception exception)
+            {
+                foreach (var observer in SubscriberFaulted?.GetInvocationList() ?? Array.Empty<Delegate>())
+                {
+                    try { ((Action<Exception>)observer)(exception); }
+                    catch { /* 诊断回调不能截断后续事件订阅者。 */ }
+                }
+            }
         }
     }
 

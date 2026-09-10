@@ -11,12 +11,18 @@ public sealed class MediumControlTests
     {
         RunSta(async () =>
         {
-            using var form = new Form { ShowInTaskbar = false, Location = new Point(-2000, -2000) };
+            using var form = new Form { ShowInTaskbar = false, Location = new Point(20, 20) };
             var label = new AgenticLabel { AgenticId = "medium.label", Text = "就绪" };
             var progress = new AgenticProgressBar { AgenticId = "medium.progress", Value = 35 };
             var tree = new AgenticTreeView { AgenticId = "medium.tree" }; var root = tree.Nodes.Add("根"); root.Nodes.Add("子");
             var grid = new AgenticDataGridView { AgenticId = "medium.grid", AllowUserToAddRows = false }; grid.Columns.Add("Name", "Name"); grid.Rows.Add("Alice");
             var list = new AgenticListView { AgenticId = "medium.list", View = View.Details }; list.Columns.Add("名称"); list.Items.Add("Alice");
+            form.ClientSize = new Size(900, 650);
+            label.SetBounds(10, 10, 150, 25);
+            progress.SetBounds(10, 45, 150, 25);
+            tree.SetBounds(10, 85, 240, 200);
+            grid.SetBounds(270, 85, 360, 200);
+            list.SetBounds(10, 310, 360, 180);
             form.Controls.AddRange(new Control[] { label, progress, tree, grid, list }); form.Show(); Application.DoEvents();
             var dispatcher = new AgenticCommandDispatcher();
             Assert.Equal("就绪", (await dispatcher.DispatchAsync(new AgenticCommand { ControlId = "medium.label", Action = AgenticActions.GetText })).Control!.State["text"]);

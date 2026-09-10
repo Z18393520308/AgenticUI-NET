@@ -7,8 +7,16 @@
 AgenticUI.NET 是一套面向 AI Agent 的桌面 UI 协议、组件库和控件库。它让 WPF 与
 Windows Forms 应用中的控件可以被稳定识别、观察、高亮、记录和通过本机语义命令触发。
 
-> 当前稳定版为 `0.5.0`，默认仍只提供本机 Named Pipe。可选的
+控件本身不包含 AI：人和 AI 控制端使用同一套真实界面和业务处理；模型调用、任务规划、
+技能学习属于外部配套控制端，不是控件库的必需依赖。
+
+> 当前稳定版为 `0.6.0`，默认仍只提供本机 Named Pipe。可选的
 > `AgenticUI.Gateway` 必须显式部署，并且只接受 WSS/TLS；UDP 仅用于可选发现。
+
+`0.6.0` 新增远程动态描边、编号和气泡，详见
+[动态引导使用文档](docs/guidance.zh-CN.md)。
+第三阶段联调补充[只读/树节点状态契约](docs/control-state-contract.zh-CN.md)，
+准备在 Windows 运行时请使用[联合验收入口](docs/windows-acceptance.zh-CN.md)。
 
 ![AgenticUI.NET 语义控件与事件时间线演示](docs/images/agenticui-overview.png)
 
@@ -17,15 +25,15 @@ Windows Forms 应用中的控件可以被稳定识别、观察、高亮、记录
 WPF：
 
 ```powershell
-dotnet add package AgenticUI.Wpf --version 0.5.0
-dotnet add package AgenticUI.Remote --version 0.5.0
+dotnet add package AgenticUI.Wpf --version 0.6.0
+dotnet add package AgenticUI.Remote --version 0.6.0
 ```
 
 WinForms：
 
 ```powershell
-dotnet add package AgenticUI.WinForms --version 0.5.0
-dotnet add package AgenticUI.Remote --version 0.5.0
+dotnet add package AgenticUI.WinForms --version 0.6.0
+dotnet add package AgenticUI.Remote --version 0.6.0
 ```
 
 只使用协议、注册表、日志和命令分发时安装 `AgenticUI.Core`。完整步骤见
@@ -58,7 +66,7 @@ src/
 ├── AgenticUI.Core       # 协议、注册表、事件总线、日志、录制与回放
 ├── AgenticUI.Remote     # 本机命名管道服务端与客户端
 ├── AgenticUI.Gateway    # 独立 WSS/TLS 到 Named Pipe 转发进程（.NET 8）
-├── AgenticUI.Wpf        # WPF 控件、附加属性和 Adorner 高亮层
+├── AgenticUI.Wpf        # WPF 控件、附加属性和非激活引导窗口
 └── AgenticUI.WinForms   # WinForms 控件、Binder 和高亮层
 samples/
 ├── WinForms/
@@ -70,6 +78,7 @@ samples/
 tests/
 ├── AgenticUI.Core.Tests
 ├── AgenticUI.WinForms.Tests
+├── AgenticUI.Wpf.Tests
 └── AgenticUI.Gateway.Tests
 ```
 
@@ -267,7 +276,7 @@ await client.ExecuteAsync(new AgenticCommand
 
 ## NuGet 包
 
-`0.5.0` 提供四个包：
+`0.6.0` 提供四个包：
 
 - [`AgenticUI.Core`](https://www.nuget.org/packages/AgenticUI.Core)
 - [`AgenticUI.Remote`](https://www.nuget.org/packages/AgenticUI.Remote)

@@ -210,6 +210,9 @@
                 <StackPanel Grid.Row="0" Grid.ColumnSpan="3" Margin="0,0,0,12">
                   <agentic:AgenticTextBlock AgenticId="demo.statusText" Text="状态：就绪" Margin="0,0,0,8" />
                   <agentic:AgenticProgressBar AgenticId="demo.progress" Value="35" Maximum="100" Height="18" />
+                  <TextBlock Text="只读契约验收：普通值 / 敏感值（后者不应出现在远程状态中）" Margin="0,12,0,4" />
+                  <agentic:AgenticTextBox AgenticId="demo.readOnly" IsReadOnly="True" Text="只读演示值" Margin="0,0,0,4" />
+                  <agentic:AgenticTextBox AgenticId="demo.sensitiveReadOnly" IsReadOnly="True" Text="敏感演示值" agentic:AgenticProperties.Sensitive="True" />
                 </StackPanel>
 
                 <agentic:AgenticListView x:Name="DemoListView"
@@ -230,8 +233,8 @@
                                          Height="160"
                                          Margin="0,0,0,16">
                   <TreeViewItem Header="公司" IsExpanded="True">
-                    <TreeViewItem Header="研发" />
-                    <TreeViewItem Header="销售" />
+                    <TreeViewItem Header="研发"><TreeViewItem Header="设计" /></TreeViewItem>
+                    <TreeViewItem Header="销售"><TreeViewItem Header="订单" /></TreeViewItem>
                   </TreeViewItem>
                 </agentic:AgenticTreeView>
 

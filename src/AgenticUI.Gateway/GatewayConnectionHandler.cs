@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using System.Net.WebSockets;
 using System.Text.Json;
 using AgenticUI.Remote;
@@ -29,13 +28,15 @@ internal sealed class GatewayConnectionHandler
     {
         using var writeLock = new SemaphoreSlim(1, 1);
         var rateLimiter = new FixedWindowRateLimiter(_options.RequestsPerMinute);
-        var requestIds = new ConcurrentDictionary<string, byte>(StringComparer.Ordinal);
+        var requestIds = new RecentRequestIds(MaximumRememberedRequestIds);
         AgenticNamedPipeClient? localClient = null;
         string? clientName = null;
 
         try
         {
-            var authentication = await ReceiveAsync(socket, cancellationToken).ConfigureAwait(false);
+            using var authenticationTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            authenticationTimeout.CancelAfter(TimeSpan.FromSeconds(10));
+            var authentication = await ReceiveAsync(socket, authenticationTimeout.Token).ConfigureAwait(false);
             if (authentication is null)
             {
                 return;
@@ -135,8 +136,7 @@ internal sealed class GatewayConnectionHandler
                 }
 
                 if (!IsValidRequestId(request.RequestId) ||
-                    requestIds.Count >= MaximumRememberedRequestIds ||
-                    !requestIds.TryAdd(request.RequestId, 0))
+                    !requestIds.TryAdd(request.RequestId))
                 {
                     await SendErrorAsync(
                         socket,

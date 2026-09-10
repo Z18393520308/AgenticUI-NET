@@ -17,7 +17,7 @@ public sealed class ToggleControlTests
             {
                 ShowInTaskbar = false,
                 StartPosition = FormStartPosition.Manual,
-                Location = new Point(-2000, -2000)
+                Location = new Point(20, 20)
             };
             using var safe = new AgenticRadioButton { AgenticId = safeId, Text = "安全模式" };
             using var normal = new AgenticRadioButton { AgenticId = normalId, Text = "普通模式", Checked = true };
@@ -57,7 +57,7 @@ public sealed class ToggleControlTests
             {
                 ShowInTaskbar = false,
                 StartPosition = FormStartPosition.Manual,
-                Location = new Point(-2000, -2000)
+                Location = new Point(20, 20)
             };
             using var other = new Button { Text = "other", TabIndex = 0 };
             using var textBox = new AgenticTextBox { AgenticId = id, TabIndex = 1 };
@@ -94,7 +94,7 @@ public sealed class ToggleControlTests
             {
                 ShowInTaskbar = false,
                 StartPosition = FormStartPosition.Manual,
-                Location = new Point(-2000, -2000)
+                Location = new Point(20, 20)
             };
             using var textBox = new AgenticTextBox { AgenticId = id, Text = "hello-agent" };
             form.Controls.Add(textBox);
@@ -128,7 +128,7 @@ public sealed class ToggleControlTests
             {
                 ShowInTaskbar = false,
                 StartPosition = FormStartPosition.Manual,
-                Location = new Point(-2000, -2000)
+                Location = new Point(20, 20)
             };
             using var checkBox = new AgenticCheckBox { AgenticId = id, Text = "记住我", Checked = true };
             form.Controls.Add(checkBox);
@@ -165,7 +165,7 @@ public sealed class ToggleControlTests
             {
                 ShowInTaskbar = false,
                 StartPosition = FormStartPosition.Manual,
-                Location = new Point(-2000, -2000)
+                Location = new Point(20, 20)
             };
             using var checkBox = new AgenticCheckBox { AgenticId = id, Text = "记住我" };
             var clickCount = 0;

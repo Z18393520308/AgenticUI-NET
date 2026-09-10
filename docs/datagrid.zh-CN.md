@@ -1,7 +1,12 @@
 # AgenticUI.NET DataGrid 使用指南
 
-本文适用于 AgenticUI.NET `0.5.0`，介绍 WPF `DataGrid` 和 WinForms
+本文适用于 AgenticUI.NET `0.6.0`，介绍 WPF `DataGrid` 和 WinForms
 `DataGridView` 的 AI 语义操作能力。
+
+当前未发布源码的升级注意事项：`highlightCell` 支持 [动态引导参数](guidance.zh-CN.md)；
+新增/删除必须允许人工新增/删除且表格非只读；`setCell` 尊重单元格只读，并通过原生文本
+编辑器提交校验。自定义、模板、复选或下拉编辑列暂不走 setCell，应使用其真实编辑控件。
+编辑失败不等于业务回滚成功，尤其在数据模型没有实现可取消编辑时，应重新读取实际状态。
 
 ## 1. 支持的动作
 
@@ -38,15 +43,15 @@
 WPF：
 
 ```powershell
-dotnet add package AgenticUI.Wpf --version 0.5.0
-dotnet add package AgenticUI.Remote --version 0.5.0
+dotnet add package AgenticUI.Wpf --version 0.6.0
+dotnet add package AgenticUI.Remote --version 0.6.0
 ```
 
 WinForms：
 
 ```powershell
-dotnet add package AgenticUI.WinForms --version 0.5.0
-dotnet add package AgenticUI.Remote --version 0.5.0
+dotnet add package AgenticUI.WinForms --version 0.6.0
+dotnet add package AgenticUI.Remote --version 0.6.0
 ```
 
 ## 3. WPF 接入

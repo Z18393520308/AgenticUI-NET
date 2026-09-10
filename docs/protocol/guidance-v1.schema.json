@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AgenticUI dynamicGuidance.v1 arguments",
+  "description": "Framework-neutral presentation arguments. Additional fields allow row/column targeting. Local Hint fallback is resolved by the target, not by this schema.",
+  "type": "object",
+  "properties": {
+    "guidanceId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F]+$" },
+    "showOutline": { "type": "boolean", "default": true },
+    "showNumber": { "type": "boolean" },
+    "instructionNumber": { "type": "integer", "minimum": 0, "maximum": 99999 },
+    "number": { "type": "integer", "minimum": 0, "maximum": 99999, "deprecated": true },
+    "showBubble": { "type": "boolean" },
+    "hint": { "type": ["string", "null"], "maxLength": 1000 },
+    "placement": { "enum": ["auto", "top", "bottom"], "default": "auto" },
+    "durationMs": { "type": "integer", "minimum": 0, "maximum": 3600000, "default": 0 }
+  },
+  "additionalProperties": true
+}

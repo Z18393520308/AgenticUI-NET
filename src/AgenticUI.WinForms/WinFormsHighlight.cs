@@ -1,74 +1,85 @@
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Windows.Forms;
+using AgenticUI;
 
 namespace AgenticUI.WinForms;
 
-internal sealed class WinFormsHighlight : IDisposable
+internal interface IGuidanceOverlayWindow { }
+
+internal sealed class WinFormsHighlight : IAgenticGuidanceVisual
 {
     private static readonly Color Accent = Color.FromArgb(45, 125, 255);
     private readonly Control _control;
-    private readonly int _number;
-    private readonly string? _hint;
-    private readonly Func<Rectangle>? _screenBoundsProvider;
+    private AgenticGuidanceOptions _options = new();
+    private readonly System.Windows.Forms.Timer _timer = new();
+    public bool IsDisposed { get; private set; }
+    private Func<Rectangle>? _screenBoundsProvider;
     private readonly List<Control> _trackedContainers = new();
     private HighlightOverlayForm? _overlay;
     private Form? _ownerForm;
 
-    public WinFormsHighlight(Control control, int number, string? hint)
-        : this(control, number, hint, null)
-    {
-    }
-
-    public WinFormsHighlight(
-        Control control,
-        int number,
-        string? hint,
-        Func<Rectangle>? screenBoundsProvider)
+    public WinFormsHighlight(Control control, Func<Rectangle>? screenBoundsProvider = null)
     {
         _control = control;
-        _number = number;
-        _hint = hint;
         _screenBoundsProvider = screenBoundsProvider;
+        _timer.Tick += OnExpired;
     }
 
-    public void Show()
+    public void Update(AgenticGuidanceOptions options)
     {
-        if (_overlay is not null)
+        if (IsDisposed) throw new ObjectDisposedException(nameof(WinFormsHighlight));
+        _options = options;
+        if (_overlay is null)
         {
-            return;
+            _ownerForm = _control.FindForm() ?? throw new InvalidOperationException("引导目标尚未挂载到窗口。");
+            _overlay = new HighlightOverlayForm(_control.Font) { Owner = _ownerForm };
+            _control.LocationChanged += OnLayoutChanged;
+            _control.SizeChanged += OnLayoutChanged;
+            _control.VisibleChanged += OnLayoutChanged;
+            _control.Disposed += OnExpired;
+            // 换父容器后原窗口/布局订阅已不再适用，关闭旧引导，等待控制端重新发现。
+            _control.ParentChanged += OnExpired;
+            if (_control is DataGridView grid)
+            {
+                grid.Scroll += OnGridScroll;
+                grid.ColumnWidthChanged += OnGridColumnWidthChanged;
+                grid.RowHeightChanged += OnGridRowHeightChanged;
+                grid.Sorted += OnLayoutChanged;
+                grid.RowsAdded += OnGridRowsAdded;
+                grid.RowsRemoved += OnGridRowsRemoved;
+                grid.DataBindingComplete += OnGridBindingComplete;
+                grid.ColumnDisplayIndexChanged += OnGridColumnWidthChanged;
+                grid.ColumnStateChanged += OnGridColumnStateChanged;
+                grid.RowStateChanged += OnGridRowStateChanged;
+            }
+            _ownerForm.LocationChanged += OnLayoutChanged;
+            _ownerForm.SizeChanged += OnLayoutChanged;
+            _ownerForm.EnabledChanged += OnLayoutChanged;
+            _ownerForm.Activated += OnLayoutChanged;
+            TrackContainers();
         }
-
-        _ownerForm = _control.FindForm();
-        if (_ownerForm is null)
+        _timer.Stop();
+        if (options.DurationMs > 0)
         {
-            return;
+            _timer.Interval = options.DurationMs;
+            _timer.Start();
         }
-
-        // 独立顶层窗体，避免作为子控件被同窗体内其它控件遮挡。
-        _overlay = new HighlightOverlayForm(_control.Font, _number, _hint)
-        {
-            Owner = _ownerForm,
-            TopMost = true
-        };
-        _overlay.Show(_ownerForm);
-        _control.LocationChanged += OnLayoutChanged;
-        _control.SizeChanged += OnLayoutChanged;
-        _control.VisibleChanged += OnLayoutChanged;
-        if (_control is DataGridView grid)
-        {
-            grid.Scroll += OnGridScroll;
-            grid.ColumnWidthChanged += OnGridColumnWidthChanged;
-            grid.RowHeightChanged += OnGridRowHeightChanged;
-        }
-        _ownerForm.LocationChanged += OnLayoutChanged;
-        _ownerForm.SizeChanged += OnLayoutChanged;
-        TrackContainers();
         UpdateOverlay();
     }
 
+    private void OnExpired(object? sender, EventArgs args) => Dispose();
+
+    public void Retarget(Func<Rectangle> screenBoundsProvider) => _screenBoundsProvider = screenBoundsProvider;
+
     public void Dispose()
     {
+        if (IsDisposed) return;
+        IsDisposed = true;
+        _timer.Stop();
+        _timer.Dispose();
+        _control.Disposed -= OnExpired;
+        _control.ParentChanged -= OnExpired;
         _control.LocationChanged -= OnLayoutChanged;
         _control.SizeChanged -= OnLayoutChanged;
         _control.VisibleChanged -= OnLayoutChanged;
@@ -77,11 +88,20 @@ internal sealed class WinFormsHighlight : IDisposable
             grid.Scroll -= OnGridScroll;
             grid.ColumnWidthChanged -= OnGridColumnWidthChanged;
             grid.RowHeightChanged -= OnGridRowHeightChanged;
+            grid.Sorted -= OnLayoutChanged;
+            grid.RowsAdded -= OnGridRowsAdded;
+            grid.RowsRemoved -= OnGridRowsRemoved;
+            grid.DataBindingComplete -= OnGridBindingComplete;
+            grid.ColumnDisplayIndexChanged -= OnGridColumnWidthChanged;
+            grid.ColumnStateChanged -= OnGridColumnStateChanged;
+            grid.RowStateChanged -= OnGridRowStateChanged;
         }
         if (_ownerForm is not null)
         {
             _ownerForm.LocationChanged -= OnLayoutChanged;
             _ownerForm.SizeChanged -= OnLayoutChanged;
+            _ownerForm.EnabledChanged -= OnLayoutChanged;
+            _ownerForm.Activated -= OnLayoutChanged;
         }
 
         foreach (var container in _trackedContainers)
@@ -121,10 +141,16 @@ internal sealed class WinFormsHighlight : IDisposable
     private void OnGridScroll(object? sender, ScrollEventArgs args) => UpdateOverlay();
     private void OnGridColumnWidthChanged(object? sender, DataGridViewColumnEventArgs args) => UpdateOverlay();
     private void OnGridRowHeightChanged(object? sender, DataGridViewRowEventArgs args) => UpdateOverlay();
+    private void OnGridRowsAdded(object? sender, DataGridViewRowsAddedEventArgs args) => UpdateOverlay();
+    private void OnGridRowsRemoved(object? sender, DataGridViewRowsRemovedEventArgs args) => UpdateOverlay();
+    private void OnGridBindingComplete(object? sender, DataGridViewBindingCompleteEventArgs args) => UpdateOverlay();
+    private void OnGridColumnStateChanged(object? sender, DataGridViewColumnStateChangedEventArgs args) => UpdateOverlay();
+    private void OnGridRowStateChanged(object? sender, DataGridViewRowStateChangedEventArgs args) => UpdateOverlay();
 
     private void UpdateOverlay()
     {
-        if (_overlay is null || _ownerForm is null || !_control.Visible || !_control.IsHandleCreated)
+        if (_overlay is null || _ownerForm is null || _ownerForm.WindowState == FormWindowState.Minimized ||
+            !_control.Visible || !_control.IsHandleCreated || !WinFormsDisplayability.IsDisplayable(_control))
         {
             if (_overlay is not null)
             {
@@ -138,16 +164,15 @@ internal sealed class WinFormsHighlight : IDisposable
                            _control.RectangleToScreen(_control.ClientRectangle);
         if (screenBounds.Width <= 0 || screenBounds.Height <= 0)
         {
-            _overlay.Visible = false;
+            if (_screenBoundsProvider is not null) Dispose();
+            else _overlay.Visible = false;
             return;
         }
-        _overlay.UpdateTarget(screenBounds, _control.DeviceDpi);
-        _overlay.Visible = true;
-        _overlay.TopMost = true;
-        _overlay.BringToFront();
+        _overlay.UpdateTarget(screenBounds, _control.DeviceDpi, _options);
+        if (!_overlay.Visible) _overlay.Show(_ownerForm);
     }
 
-    private sealed class HighlightOverlayForm : Form
+    private sealed class HighlightOverlayForm : Form, IGuidanceOverlayWindow
     {
         private const int WmNcHitTest = 0x0084;
         private const int HtTransparent = -1;
@@ -156,18 +181,15 @@ internal sealed class WinFormsHighlight : IDisposable
         private const int WsExTransparent = 0x00000020;
         private const int WsExLayered = 0x00080000;
 
-        private readonly int _number;
-        private readonly string? _hint;
+        private AgenticGuidanceOptions _options = new();
         private Rectangle _outline;
         private Rectangle _badge;
         private Rectangle _bubble;
         private int _thickness;
 
-        public HighlightOverlayForm(Font font, int number, string? hint)
+        public HighlightOverlayForm(Font font)
         {
             Font = font;
-            _number = number;
-            _hint = hint;
             FormBorderStyle = FormBorderStyle.None;
             ShowInTaskbar = false;
             StartPosition = FormStartPosition.Manual;
@@ -188,65 +210,43 @@ internal sealed class WinFormsHighlight : IDisposable
             }
         }
 
-        public void UpdateTarget(Rectangle screenTarget, int dpi)
+        public void UpdateTarget(Rectangle screenTarget, int dpi, AgenticGuidanceOptions options)
         {
-            var scale = Math.Max(1F, dpi / 96F);
-            _thickness = Math.Max(3, (int)Math.Round(3 * scale));
-            var gap = Math.Max(4, (int)Math.Round(4 * scale));
-            var padding = Math.Max(22, (int)Math.Round(22 * scale));
-            var badgeSize = Math.Max(24, (int)Math.Round(24 * scale));
-            var hintSize = string.IsNullOrWhiteSpace(_hint)
-                ? Size.Empty
-                : TextRenderer.MeasureText(_hint, Font);
-            var bubbleHeight = hintSize.IsEmpty ? 0 : hintSize.Height + (int)Math.Round(10 * scale);
-            var bubbleWidth = hintSize.IsEmpty ? 0 : hintSize.Width + (int)Math.Round(18 * scale);
-
-            var width = Math.Max(screenTarget.Width + padding * 2, bubbleWidth + padding * 2);
-            var height = screenTarget.Height + padding * 2 + (bubbleHeight == 0 ? 0 : bubbleHeight + gap);
-            Bounds = new Rectangle(
-                screenTarget.Left - padding,
-                screenTarget.Top - padding,
-                width,
-                height);
-
-            _outline = new Rectangle(
-                padding - gap,
-                padding - gap,
-                screenTarget.Width + gap * 2,
-                screenTarget.Height + gap * 2);
-            _badge = _number > 0
-                ? new Rectangle(
-                    _outline.Left - badgeSize / 2,
-                    _outline.Top - badgeSize / 2,
-                    badgeSize,
-                    badgeSize)
-                : Rectangle.Empty;
-            _bubble = hintSize.IsEmpty
-                ? Rectangle.Empty
-                : new Rectangle(_outline.Left, _outline.Bottom + gap, bubbleWidth, bubbleHeight);
-
+            _options = options;
+            var scale = Math.Max(0.5F, dpi / 96F);
+            _thickness = Math.Max(1, (int)Math.Round(3 * scale));
+            var work = Screen.FromRectangle(screenTarget).WorkingArea;
+            var hintSize = options.ShowBubble
+                ? TextRenderer.MeasureText(options.Hint, Font,
+                    new Size(Math.Max(20, Math.Min((int)(340 * scale), work.Width - 24)),
+                        Math.Max(20, Math.Min((int)(240 * scale), work.Height - 24))),
+                    TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix | TextFormatFlags.EndEllipsis)
+                : Size.Empty;
+            var layout = AgenticGuidanceLayout.Calculate(
+                new GuidanceRect(screenTarget.X, screenTarget.Y, screenTarget.Width, screenTarget.Height),
+                new GuidanceRect(work.X, work.Y, work.Width, work.Height),
+                hintSize.Width + 20 * scale, Math.Min(hintSize.Height, 240 * scale) + 16 * scale, scale, options);
+            Bounds = ToRectangle(layout.Bounds);
+            _outline = ToRectangle(layout.Outline);
+            _badge = ToRectangle(layout.Badge);
+            _bubble = ToRectangle(layout.Bubble);
             Invalidate();
         }
+
+        private static Rectangle ToRectangle(GuidanceRect r) => r.IsEmpty ? Rectangle.Empty :
+            new Rectangle((int)Math.Floor(r.X), (int)Math.Floor(r.Y),
+                (int)Math.Ceiling(r.Width), (int)Math.Ceiling(r.Height));
 
         protected override void OnPaint(PaintEventArgs args)
         {
             base.OnPaint(args);
             args.Graphics.Clear(Color.Magenta);
             using var brush = new SolidBrush(Accent);
-            args.Graphics.FillRectangle(brush, _outline.Left, _outline.Top, _outline.Width, _thickness);
-            args.Graphics.FillRectangle(
-                brush,
-                _outline.Left,
-                _outline.Bottom - _thickness,
-                _outline.Width,
-                _thickness);
-            args.Graphics.FillRectangle(brush, _outline.Left, _outline.Top, _thickness, _outline.Height);
-            args.Graphics.FillRectangle(
-                brush,
-                _outline.Right - _thickness,
-                _outline.Top,
-                _thickness,
-                _outline.Height);
+            if (!_outline.IsEmpty)
+            {
+                using var pen = new Pen(Accent, _thickness);
+                args.Graphics.DrawRectangle(pen, _outline);
+            }
 
             if (!_badge.IsEmpty)
             {
@@ -254,7 +254,7 @@ internal sealed class WinFormsHighlight : IDisposable
                 args.Graphics.FillEllipse(brush, _badge);
                 TextRenderer.DrawText(
                     args.Graphics,
-                    _number.ToString(),
+                    _options.InstructionNumber.ToString(),
                     Font,
                     _badge,
                     Color.White,
@@ -266,11 +266,11 @@ internal sealed class WinFormsHighlight : IDisposable
                 args.Graphics.FillRectangle(brush, _bubble);
                 TextRenderer.DrawText(
                     args.Graphics,
-                    _hint,
+                    _options.Hint,
                     Font,
-                    _bubble,
+                    Rectangle.Inflate(_bubble, -10, -8),
                     Color.White,
-                    TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+                    TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix | TextFormatFlags.EndEllipsis);
             }
         }
 

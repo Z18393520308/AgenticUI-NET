@@ -62,6 +62,8 @@ internal static class WinFormsDisplayability
         var hit = Control.FromChildHandle(hwnd) ?? Control.FromHandle(hwnd);
         if (hit is not null)
         {
+            // 自己的穿透引导层不是业务遮挡物。
+            if (hit is IGuidanceOverlayWindow && hit.FindForm()?.Owner == form) return true;
             if (IsAssociated(control, hit))
             {
                 return true;

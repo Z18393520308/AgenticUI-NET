@@ -15,17 +15,18 @@ using AgenticUI;
 
 namespace AgenticUI.Wpf;
 
-internal sealed class WpfControlAdapter : IAgenticControl
+internal sealed class WpfControlAdapter : IAgenticControl, IAgenticGuidanceControl
 {
     private readonly FrameworkElement _element;
     private readonly AgenticControlRegistry _registry;
     private readonly AgenticEventBus _events;
     private string? _registeredId;
-    private WpfHighlight? _highlight;
-    private WpfHighlight? _cellHighlight;
+    private readonly AgenticGuidanceCollection _highlights = new();
+    private readonly AgenticGuidanceCollection _cellHighlights = new();
     private bool _attached;
     private AgenticEventSource _activeSource = AgenticEventSource.User;
     private Dictionary<string, object?>? _lastCellState;
+    private TreeViewItem? _lastExpansionNode;
     private Predicate<object>? _originalGridFilter;
     private bool _hasAgenticGridFilter;
 
@@ -152,6 +153,7 @@ internal sealed class WpfControlAdapter : IAgenticControl
             IsTemporaryId = id.StartsWith("temporary.", StringComparison.OrdinalIgnoreCase),
             IsSensitive = AgenticProperties.GetSensitive(_element) || _element is PasswordBox,
             IsEnabled = _element.IsEnabled,
+            Capabilities = new[] { AgenticGuidanceOptions.Capability },
             Actions = GetActions(),
             State = GetState()
         };
@@ -159,6 +161,12 @@ internal sealed class WpfControlAdapter : IAgenticControl
 
     private void ExecuteOnUiThread(AgenticCommand command)
     {
+        if (command.Action == AgenticActions.ClearHighlight) { ClearHighlight(command); return; }
+        if (!AgenticActionPolicy.IsObservation(command.Action))
+        {
+            if (!_element.IsEnabled || !WpfDisplayability.IsDisplayable(_element))
+                throw new InvalidOperationException("目标控件不可交互，禁止远程绕过禁用或隐藏状态。");
+        }
         var window = Window.GetWindow(_element);
         if (window is null ||
             !window.IsVisible ||
@@ -178,10 +186,10 @@ internal sealed class WpfControlAdapter : IAgenticControl
                     _element.Focus();
                     break;
                 case AgenticActions.Highlight:
-                    ShowHighlight();
+                    ShowHighlight(command);
                     break;
                 case AgenticActions.ClearHighlight:
-                    RemoveHighlight();
+                    ClearHighlight(command);
                     break;
                 case AgenticActions.MouseMove:
                 case AgenticActions.MouseClick:
@@ -190,26 +198,8 @@ internal sealed class WpfControlAdapter : IAgenticControl
                 case AgenticActions.MouseDrag:
                     WpfMouseInput.Execute(_element, command);
                     break;
-                case AgenticActions.Click when _element is Button button:
-                    var peer = new ButtonAutomationPeer(button);
-                    ((IInvokeProvider)peer.GetPattern(PatternInterface.Invoke)).Invoke();
-                    break;
-                case AgenticActions.Click when _element is RadioButton radioButton:
-                    radioButton.IsChecked = true;
-                    radioButton.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent, radioButton));
-                    break;
-                case AgenticActions.Click when _element is CheckBox checkBox:
-                    checkBox.IsChecked = checkBox.IsChecked switch
-                    {
-                        true => checkBox.IsThreeState ? null : false,
-                        false => true,
-                        null => false
-                    };
-                    checkBox.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent, checkBox));
-                    break;
-                case AgenticActions.Click when _element is ToggleButton toggleButton:
-                    toggleButton.IsChecked = toggleButton.IsChecked != true;
-                    toggleButton.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent, toggleButton));
+                case AgenticActions.Click when _element is ButtonBase button:
+                    InvokeNativeClick(button);
                     break;
                 case AgenticActions.Click when _element is TextBox:
                 case AgenticActions.Click when _element is PasswordBox:
@@ -223,7 +213,13 @@ internal sealed class WpfControlAdapter : IAgenticControl
                     closedComboBox.IsDropDownOpen = false;
                     break;
                 case AgenticActions.SetText when _element is TextBox textBox:
-                    textBox.Text = GetArgument(command, "text")?.ToString() ?? "";
+                    if (textBox.IsReadOnly) throw new InvalidOperationException("文本框为只读。");
+                    var text = GetArgument(command, "text")?.ToString() ?? "";
+                    if (textBox.MaxLength > 0 && text.Length > textBox.MaxLength)
+                        throw new ArgumentException("文本超过控件 MaxLength 限制。");
+                    textBox.SetCurrentValue(TextBox.TextProperty, text);
+                    textBox.GetBindingExpression(TextBox.TextProperty)?.UpdateSource();
+                    if (Validation.GetHasError(textBox)) throw new InvalidOperationException("文本未通过控件绑定校验。");
                     break;
                 case AgenticActions.SetText when _element is PasswordBox passwordBox:
                     passwordBox.Password = GetArgument(command, "text")?.ToString() ?? "";
@@ -243,17 +239,17 @@ internal sealed class WpfControlAdapter : IAgenticControl
                 case AgenticActions.GetText when _element is ListView:
                     break;
                 case AgenticActions.SetValue when _element is DatePicker datePicker:
-                    datePicker.SelectedDate = DateTime.Parse(GetArgument(command, "value")?.ToString() ?? throw new ArgumentException("setValue requires a 'value' argument."));
+                    datePicker.SetCurrentValue(DatePicker.SelectedDateProperty, DateTime.Parse(GetArgument(command, "value")?.ToString() ?? throw new ArgumentException("setValue requires a 'value' argument.")));
                     break;
                 case AgenticActions.GetValue when _element is DatePicker:
                     break;
                 case AgenticActions.SetValue when _element is Slider slider:
-                    slider.Value = double.Parse(GetArgument(command, "value")?.ToString() ?? throw new ArgumentException("setValue requires a 'value' argument."));
+                    slider.SetCurrentValue(Slider.ValueProperty, double.Parse(GetArgument(command, "value")?.ToString() ?? throw new ArgumentException("setValue requires a 'value' argument.")));
                     break;
                 case AgenticActions.GetValue when _element is Slider:
                     break;
                 case AgenticActions.SetChecked when _element is ToggleButton toggle:
-                    toggle.IsChecked = ReadBoolean(GetArgument(command, "checked"));
+                    toggle.SetCurrentValue(ToggleButton.IsCheckedProperty, ReadBoolean(GetArgument(command, "checked")));
                     break;
                 case AgenticActions.GetChecked when _element is ToggleButton:
                     break;
@@ -300,19 +296,19 @@ internal sealed class WpfControlAdapter : IAgenticControl
                     SelectGridCell(grid, command);
                     break;
                 case AgenticActions.SelectItem when _element is TreeView tree:
-                    FindTreeItem(tree, command).IsSelected = true;
+                    WpfTreeState.Find(tree, command).SetCurrentValue(TreeViewItem.IsSelectedProperty, true);
                     break;
                 case AgenticActions.Expand when _element is TreeView tree:
-                    FindTreeItem(tree, command).IsExpanded = true;
+                    WpfTreeState.Find(tree, command).SetCurrentValue(TreeViewItem.IsExpandedProperty, true);
                     break;
                 case AgenticActions.Collapse when _element is TreeView tree:
-                    FindTreeItem(tree, command).IsExpanded = false;
+                    WpfTreeState.Find(tree, command).SetCurrentValue(TreeViewItem.IsExpandedProperty, false);
                     break;
                 case AgenticActions.Click when _element is Menu menu:
-                    FindMenuItem(menu.Items, command).RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+                    InvokeNativeMenuClick(FindMenuItem(menu.Items, command));
                     break;
                 case AgenticActions.Click when _element is ToolBar toolBar:
-                    FindToolBarItem(toolBar, command).RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+                    InvokeNativeClick(FindToolBarItem(toolBar, command));
                     break;
                 case AgenticActions.GetValue when _element is ProgressBar:
                     break;
@@ -324,6 +320,21 @@ internal sealed class WpfControlAdapter : IAgenticControl
         {
             _activeSource = previousSource;
         }
+    }
+
+    private static void InvokeNativeClick(ButtonBase button)
+    {
+        if (!button.IsEnabled || !button.IsVisible) throw new InvalidOperationException("按钮不可交互。");
+        button.Focus();
+        // 调用真实控件的虚方法，复用 OnToggle、Click、ICommand；仅 RaiseEvent 会遗漏 ICommand。
+        typeof(ButtonBase).GetMethod("OnClick", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(button, null);
+    }
+
+    private static void InvokeNativeMenuClick(MenuItem item)
+    {
+        if (!item.IsEnabled || !item.IsVisible) throw new InvalidOperationException("菜单项不可交互。");
+        typeof(MenuItem).GetMethod("OnClick", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(item, null);
     }
 
     private void Register()
@@ -382,7 +393,13 @@ internal sealed class WpfControlAdapter : IAgenticControl
         }
         if (_element is Slider slider) slider.ValueChanged += OnValueChanged;
         if (_element is ProgressBar progressBar) progressBar.ValueChanged += OnProgressValueChanged;
-        if (_element is TreeView treeView) treeView.SelectedItemChanged += OnTreeSelectionChanged;
+        if (_element is TreeView treeView)
+        {
+            treeView.SelectedItemChanged += OnTreeSelectionChanged;
+            // 在树根监听冒泡事件，涵盖动态/绑定节点；handledEventsToo 避免业务处理后丢失审计。
+            treeView.AddHandler(TreeViewItem.ExpandedEvent, new RoutedEventHandler(OnTreeExpanded), true);
+            treeView.AddHandler(TreeViewItem.CollapsedEvent, new RoutedEventHandler(OnTreeCollapsed), true);
+        }
         if (_element is DatePicker datePicker) datePicker.SelectedDateChanged += OnDateChanged;
     }
 
@@ -420,7 +437,13 @@ internal sealed class WpfControlAdapter : IAgenticControl
         }
         if (_element is Slider slider) slider.ValueChanged -= OnValueChanged;
         if (_element is ProgressBar progressBar) progressBar.ValueChanged -= OnProgressValueChanged;
-        if (_element is TreeView treeView) treeView.SelectedItemChanged -= OnTreeSelectionChanged;
+        if (_element is TreeView treeView)
+        {
+            treeView.SelectedItemChanged -= OnTreeSelectionChanged;
+            treeView.RemoveHandler(TreeViewItem.ExpandedEvent, new RoutedEventHandler(OnTreeExpanded));
+            treeView.RemoveHandler(TreeViewItem.CollapsedEvent, new RoutedEventHandler(OnTreeCollapsed));
+            _lastExpansionNode = null;
+        }
         if (_element is DatePicker datePicker) datePicker.SelectedDateChanged -= OnDateChanged;
     }
 
@@ -474,8 +497,27 @@ internal sealed class WpfControlAdapter : IAgenticControl
         Publish(AgenticEvents.ValueChanged, data: new Dictionary<string, object?> { ["value"] = args.NewValue });
     private void OnProgressValueChanged(object sender, RoutedPropertyChangedEventArgs<double> args) =>
         Publish(AgenticEvents.ValueChanged, data: new Dictionary<string, object?> { ["value"] = args.NewValue });
-    private void OnTreeSelectionChanged(object sender, RoutedPropertyChangedEventArgs<object> args) =>
-        Publish(AgenticEvents.SelectionChanged, data: new Dictionary<string, object?> { ["selection"] = GetTreeHeader(args.NewValue) });
+    private void OnTreeSelectionChanged(object sender, RoutedPropertyChangedEventArgs<object> args)
+    {
+        // 嵌套 TreeView 的选择事件会冒泡到外树，不得将其内容作为外树的事件（或绕过内树脱敏）。
+        if (!ReferenceEquals(args.OriginalSource, _element)) return;
+        Publish(AgenticEvents.SelectionChanged, data: new Dictionary<string, object?>
+        {
+            ["selection"] = WpfTreeState.Header(WpfTreeState.Selected((TreeView)_element)) ?? GetTreeHeader(args.NewValue),
+            ["path"] = WpfTreeState.Path((TreeView)_element, WpfTreeState.Selected((TreeView)_element))
+        });
+    }
+    private void OnTreeExpanded(object sender, RoutedEventArgs args) => OnTreeExpansion(args, AgenticEvents.Expanded);
+    private void OnTreeCollapsed(object sender, RoutedEventArgs args) => OnTreeExpansion(args, AgenticEvents.Collapsed);
+    private void OnTreeExpansion(RoutedEventArgs args, string eventName)
+    {
+        if (_element is not TreeView tree || args.OriginalSource is not TreeViewItem node || !WpfTreeState.BelongsTo(tree, node)) return;
+        _lastExpansionNode = node;
+        Publish(eventName, data: new Dictionary<string, object?>
+        {
+            ["path"] = WpfTreeState.Path(tree, node), ["expanded"] = node.IsExpanded
+        });
+    }
     private void OnDateChanged(object? sender, SelectionChangedEventArgs args) =>
         Publish(AgenticEvents.ValueChanged, data: new Dictionary<string, object?> { ["value"] = ((DatePicker)_element).SelectedDate?.ToString("O") });
 
@@ -486,7 +528,9 @@ internal sealed class WpfControlAdapter : IAgenticControl
     {
         if (_registeredId is not null)
         {
-            _ = _events.PublishAsync(_registeredId, eventName, source ?? _activeSource, data);
+            var message = _events.Create(_registeredId, eventName, source ?? _activeSource, data);
+            message.IsSensitive = AgenticProperties.GetSensitive(_element) || _element is PasswordBox;
+            _ = _events.PublishAsync(message);
         }
     }
 
@@ -608,6 +652,7 @@ internal sealed class WpfControlAdapter : IAgenticControl
         if (_element is TextBox textBox)
         {
             state["text"] = AgenticProperties.GetSensitive(_element) ? null : textBox.Text;
+            state["readOnly"] = textBox.IsReadOnly;
         }
 
         if (_element is PasswordBox)
@@ -656,14 +701,21 @@ internal sealed class WpfControlAdapter : IAgenticControl
         if (_element is Label label) state["text"] = label.Content?.ToString();
         if (_element is DataGrid grid)
         {
+            state["readOnly"] = grid.IsReadOnly;
             state["selectedIndex"] = grid.SelectedIndex;
             state["rowCount"] = grid.Items.Count;
             state["columnCount"] = grid.Columns.Count;
         }
         if (_element is TreeView treeView)
         {
-            state["text"] = GetTreeHeader(treeView.SelectedItem);
-            state["selection"] = GetTreeHeader(treeView.SelectedItem);
+            var selected = WpfTreeState.Selected(treeView);
+            state["text"] = WpfTreeState.Header(selected) ?? GetTreeHeader(treeView.SelectedItem);
+            state["selection"] = state["text"];
+            state["path"] = WpfTreeState.Path(treeView, selected);
+            state["treeStateVersion"] = 1;
+            var expansionPath = WpfTreeState.Path(treeView, _lastExpansionNode);
+            state["expansionPath"] = expansionPath;
+            state["expanded"] = expansionPath is null ? null : _lastExpansionNode!.IsExpanded;
             state["itemCount"] = treeView.Items.Count;
         }
         if (_lastCellState is not null)
@@ -673,26 +725,33 @@ internal sealed class WpfControlAdapter : IAgenticControl
         return state;
     }
 
-    private void ShowHighlight()
+    private void ShowHighlight(AgenticCommand command)
     {
-        if (_highlight is not null)
-        {
-            return;
-        }
+        var options = AgenticGuidanceOptions.FromCommand(command, AgenticProperties.GetInstructionNumber(_element), AgenticProperties.GetHint(_element));
+        _highlights.Show(command, options, () => new WpfHighlight(_element));
+    }
 
-        _highlight = new WpfHighlight(
-            _element,
-            AgenticProperties.GetInstructionNumber(_element),
-            AgenticProperties.GetHint(_element));
-        _highlight.Show();
+    private void ClearHighlight(AgenticCommand command)
+    {
+        var id = AgenticGuidanceOptions.ReadGuidanceId(command);
+        _highlights.Clear(command.SessionId, id);
+        _cellHighlights.Clear(command.SessionId, id);
     }
 
     private void RemoveHighlight()
     {
-        _highlight?.Dispose();
-        _highlight = null;
-        _cellHighlight?.Dispose();
-        _cellHighlight = null;
+        _highlights.Dispose();
+        _cellHighlights.Dispose();
+    }
+
+    public async Task ClearGuidanceAsync(string sessionId)
+    {
+        if (_element.Dispatcher.HasShutdownStarted) return;
+        await _element.Dispatcher.InvokeAsync(() =>
+        {
+            _highlights.Clear(sessionId);
+            _cellHighlights.Clear(sessionId);
+        });
     }
 
     private static object? GetArgument(AgenticCommand command, string key) =>
@@ -717,7 +776,8 @@ internal sealed class WpfControlAdapter : IAgenticControl
     {
         if (index is not null && int.TryParse(index.ToString(), out var parsedIndex))
         {
-            selector.SelectedIndex = parsedIndex;
+            if (parsedIndex < 0 || parsedIndex >= selector.Items.Count) throw new ArgumentOutOfRangeException(nameof(index));
+            selector.SetCurrentValue(Selector.SelectedIndexProperty, parsedIndex);
             return;
         }
 
@@ -730,7 +790,8 @@ internal sealed class WpfControlAdapter : IAgenticControl
         {
             if (string.Equals(selector is TabControl ? GetTabText(item) : item?.ToString(), value.ToString(), StringComparison.OrdinalIgnoreCase))
             {
-                selector.SelectedItem = item;
+                if (item is UIElement child && !child.IsEnabled) throw new InvalidOperationException("目标选项已禁用。");
+                selector.SetCurrentValue(Selector.SelectedItemProperty, item);
                 return;
             }
         }
@@ -819,23 +880,29 @@ internal sealed class WpfControlAdapter : IAgenticControl
     {
         var row = ReadIndex(GetArgument(command, "row"));
         var column = ResolveGridColumn(grid, GetArgument(command, "column"));
-        var item = GetGridItem(grid, row);
-        var property = GetBindingPath(grid.Columns[column]);
-        if (string.IsNullOrWhiteSpace(property)) throw new InvalidOperationException("setCell requires a bound DataGrid column.");
-        var member = item.GetType().GetProperty(property, BindingFlags.Instance | BindingFlags.Public | BindingFlags.IgnoreCase);
-        if (member is null || !member.CanWrite) throw new InvalidOperationException($"Property '{property}' cannot be written.");
-        var value = NormalizeJsonValue(GetArgument(command, "value") ?? GetArgument(command, "text") ?? "");
-        member.SetValue(item, ConvertForType(value, member.PropertyType));
-        grid.Items.Refresh();
-        grid.SelectedItem = item;
-        var updated = member.GetValue(item);
-        _lastCellState = new Dictionary<string, object?>
+        if (grid.IsReadOnly || grid.Columns[column].IsReadOnly)
+            throw new InvalidOperationException("目标单元格为只读。");
+        var cell = GetGridCell(grid, row, column);
+        grid.CurrentCell = new DataGridCellInfo(GetGridItem(grid, row), grid.Columns[column]);
+        if (!grid.BeginEdit()) throw new InvalidOperationException("表格拒绝进入编辑状态。");
+        try
         {
-            ["rowIndex"] = row,
-            ["columnIndex"] = column,
-            ["text"] = updated?.ToString(),
-            ["cell"] = updated
-        };
+            if (cell.Content is not TextBox editor)
+                throw new InvalidOperationException("setCell 当前只支持原生文本编辑列，其他列请使用其真实编辑控件。");
+            var text = NormalizeJsonValue(GetArgument(command, "value") ?? GetArgument(command, "text"))?.ToString() ?? "";
+            editor.SetCurrentValue(TextBox.TextProperty, text);
+            editor.GetBindingExpression(TextBox.TextProperty)?.UpdateSource();
+            if (Validation.GetHasError(editor) || !grid.CommitEdit(DataGridEditingUnit.Cell, true) ||
+                !grid.CommitEdit(DataGridEditingUnit.Row, true))
+                throw new InvalidOperationException("单元格或行编辑未通过原有校验。");
+        }
+        catch
+        {
+            grid.CancelEdit(DataGridEditingUnit.Cell);
+            grid.CancelEdit(DataGridEditingUnit.Row);
+            throw;
+        }
+        ReadGridCell(grid, command);
     }
 
     private static void ScrollGridToRow(DataGrid grid, int row)
@@ -847,6 +914,7 @@ internal sealed class WpfControlAdapter : IAgenticControl
 
     private void AddGridRow(DataGrid grid, AgenticCommand command)
     {
+        if (grid.IsReadOnly || !grid.CanUserAddRows) throw new InvalidOperationException("表格不允许用户新增行。");
         var values = ReadObjectArgument(GetArgument(command, "values"));
         var existingItems = GetGridItems(grid);
         var itemType = GetCollectionItemType(grid.ItemsSource?.GetType()) ?? existingItems.FirstOrDefault()?.GetType();
@@ -880,6 +948,7 @@ internal sealed class WpfControlAdapter : IAgenticControl
 
     private static void DeleteGridRow(DataGrid grid, int row)
     {
+        if (grid.IsReadOnly || !grid.CanUserDeleteRows) throw new InvalidOperationException("表格不允许用户删除行。");
         var item = GetGridItem(grid, row);
         if (grid.ItemsSource is IList source)
         {
@@ -901,6 +970,7 @@ internal sealed class WpfControlAdapter : IAgenticControl
     private static void SortGridByColumn(DataGrid grid, AgenticCommand command)
     {
         var column = grid.Columns[ResolveGridColumn(grid, GetArgument(command, "column"))];
+        if (!grid.CanUserSortColumns || !column.CanUserSort) throw new InvalidOperationException("该列禁止用户排序。");
         var property = GetBindingPath(column);
         if (string.IsNullOrWhiteSpace(property))
             throw new InvalidOperationException("sortByColumn requires a bound DataGrid column.");
@@ -954,9 +1024,12 @@ internal sealed class WpfControlAdapter : IAgenticControl
         var row = ReadIndex(GetArgument(command, "row"));
         var column = ResolveGridColumn(grid, GetArgument(command, "column"));
         var cell = GetGridCell(grid, row, column);
-        _cellHighlight?.Dispose();
-        _cellHighlight = new WpfHighlight(cell, AgenticProperties.GetInstructionNumber(_element), AgenticProperties.GetHint(_element));
-        _cellHighlight.Show();
+        var options = AgenticGuidanceOptions.FromCommand(command, AgenticProperties.GetInstructionNumber(_element), AgenticProperties.GetHint(_element));
+        var item = cell.DataContext;
+        var targetColumn = cell.Column;
+        _cellHighlights.Show(command, options, () => new WpfHighlight(cell),
+            visual => ((WpfHighlight)visual).Retarget(cell,
+                () => ReferenceEquals(cell.DataContext, item) && ReferenceEquals(cell.Column, targetColumn)));
         _lastCellState = new Dictionary<string, object?> { ["rowIndex"] = row, ["columnIndex"] = column };
     }
 
@@ -1121,35 +1194,7 @@ internal sealed class WpfControlAdapter : IAgenticControl
         }
     }
 
-    private static TreeViewItem FindTreeItem(TreeView tree, AgenticCommand command)
-    {
-        var path = GetArgument(command, "path")?.ToString();
-        if (!string.IsNullOrWhiteSpace(path))
-        {
-            ItemCollection items = tree.Items;
-            TreeViewItem? found = null;
-            foreach (var part in path!.Split(new[] { '/' }, StringSplitOptions.RemoveEmptyEntries))
-            {
-                found = items.OfType<TreeViewItem>().FirstOrDefault(item => string.Equals(GetTreeHeader(item), part, StringComparison.OrdinalIgnoreCase))
-                    ?? throw new ArgumentOutOfRangeException(nameof(path), $"Tree item '{path}' was not found.");
-                items = found.Items;
-            }
-            return found!;
-        }
-        if (GetArgument(command, "index") is not null) return (TreeViewItem)tree.Items[ReadIndex(GetArgument(command, "index"))];
-        var value = GetArgument(command, "value")?.ToString() ?? throw new ArgumentException("Tree action requires path, value, or index.");
-        return tree.Items.OfType<TreeViewItem>().SelectMany(FlattenTree).FirstOrDefault(item => string.Equals(GetTreeHeader(item), value, StringComparison.OrdinalIgnoreCase))
-            ?? throw new ArgumentOutOfRangeException(nameof(value), $"Tree item '{value}' was not found.");
-    }
-
-    private static IEnumerable<TreeViewItem> FlattenTree(TreeViewItem item)
-    {
-        yield return item;
-        foreach (var child in item.Items.OfType<TreeViewItem>())
-            foreach (var descendant in FlattenTree(child)) yield return descendant;
-    }
-
-    private static string? GetTreeHeader(object? item) => item is TreeViewItem treeItem ? treeItem.Header?.ToString() : item?.ToString();
+    private static string? GetTreeHeader(object? item) => WpfTreeState.Header(item);
 
     private static MenuItem FindMenuItem(ItemCollection items, AgenticCommand command) =>
         FindMenuItemCore(items.OfType<MenuItem>(), command);

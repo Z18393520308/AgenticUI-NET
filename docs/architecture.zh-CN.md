@@ -25,8 +25,9 @@ AgenticUI.NET 不把 AI 绑定到具体控件框架。WPF、WinForms 以及未�
 
 ### UI 适配层
 
-WPF 使用 `AdornerLayer` 绘制独立高亮，不改变按钮的按下状态。WinForms 使用添加到顶层
-窗体的前景覆盖层，并通过窗口样式和命中测试实现点击穿透。两端均提供：
+WPF 和 WinForms 使用归属于业务窗口的独立、非激活引导窗口，不改变按钮的按下状态，
+通过窗口样式和命中测试实现点击穿透。描边、编号和气泡是独立可控的纯展示能力，
+远程更新不修改控件预设属性，参见 [动态引导协议](guidance.zh-CN.md)。两端均提供：
 
 - 替换式 `AgenticButton`、`AgenticTextBox`、`AgenticCheckBox`、
   `AgenticRadioButton`、`AgenticComboBox`

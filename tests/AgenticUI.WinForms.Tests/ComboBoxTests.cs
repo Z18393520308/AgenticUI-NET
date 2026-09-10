@@ -16,7 +16,7 @@ public sealed class ComboBoxTests
             {
                 ShowInTaskbar = false,
                 StartPosition = FormStartPosition.Manual,
-                Location = new Point(-2000, -2000)
+                Location = new Point(20, 20)
             };
             using var comboBox = new AgenticComboBox
             {

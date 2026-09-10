@@ -11,6 +11,14 @@ namespace AgenticUI.Gateway.Tests;
 public sealed class GatewaySecurityTests
 {
     [Fact]
+    public void RequestWindowAllowsLongLivedConnectionsButRejectsRecentDuplicates()
+    {
+        var window = new RecentRequestIds(2048);
+        for (var index = 0; index < 10000; index++) Assert.True(window.TryAdd(index.ToString()));
+        Assert.False(window.TryAdd("9999"));
+        Assert.True(window.TryAdd("0")); // 已过期 ID 可再次使用，不承诺业务幂等。
+    }
+    [Fact]
     public void OptionsRequireTwoLongDifferentTokens()
     {
         var options = ValidOptions();

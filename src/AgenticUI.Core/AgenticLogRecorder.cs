@@ -82,29 +82,9 @@ public sealed class AgenticLogRecorder : IAgenticEventSink, IDisposable
 
     private AgenticEvent Sanitize(AgenticEvent message)
     {
-        if (!_options.RedactSensitiveValues ||
-            !_registry.TryGet(message.ControlId, out var control) ||
-            control?.Describe().IsSensitive != true)
-        {
-            return message;
-        }
-
-        var data = message.Data.ToDictionary(
-            item => item.Key,
-            item => IsPotentialValue(item.Key) ? _options.RedactedText : item.Value);
-        return new AgenticEvent
-        {
-            Sequence = message.Sequence,
-            ControlId = message.ControlId,
-            Name = message.Name,
-            Source = message.Source,
-            Timestamp = message.Timestamp,
-            Data = data
-        };
+        if (!_options.RedactSensitiveValues) return message;
+        var sensitive = message.IsSensitive ||
+            (_registry.TryGet(message.ControlId, out var control) && control?.Describe().IsSensitive == true);
+        return AgenticPrivacy.SanitizeEvent(message, sensitive, _options.RedactedText);
     }
-
-    private static bool IsPotentialValue(string key) =>
-        key.IndexOf("text", StringComparison.OrdinalIgnoreCase) >= 0 ||
-        key.IndexOf("value", StringComparison.OrdinalIgnoreCase) >= 0 ||
-        key.IndexOf("selection", StringComparison.OrdinalIgnoreCase) >= 0;
 }

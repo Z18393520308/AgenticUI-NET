@@ -4,6 +4,9 @@
 该端点不应跨机器暴露。跨机器访问由独立 `AgenticUI.Gateway` 通过 WSS/TLS 转发，见
 [Gateway 安全部署指南](gateway.zh-CN.md)。
 
+当前源码的动态描边、编号、气泡参数和能力协商见 [动态引导协议](guidance.zh-CN.md)。
+新增 capabilities 字段用于区分静态旧目标与 dynamicGuidance.v1；稳定包 0.5.0 尚不具备该扩展。
+
 ## 认证
 
 服务端默认生成 256 位随机令牌。连接建立后的第一个请求应完成认证：

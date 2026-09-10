@@ -14,6 +14,26 @@ public partial class RemoteConsoleForm : Form
         InitializeComponent();
         SetupConnectionPanel();
         AddExtendedDemoActions();
+        AddGuidanceDemo();
+    }
+
+    private void AddGuidanceDemo()
+    {
+        actionsPanel.SetFlowBreak(actionsPanel.Controls[actionsPanel.Controls.Count - 1], true);
+        AddActionLabel("动态引导");
+        var hint = new TextBox { Width = 270, MaxLength = 1000, Text = "请核对当前内容，再继续操作。" };
+        var outline = new CheckBox { Text = "描边", Checked = true, AutoSize = true };
+        var number = new CheckBox { Text = "编号 2", Checked = true, AutoSize = true };
+        var bubble = new CheckBox { Text = "气泡", Checked = true, AutoSize = true };
+        var expire = new CheckBox { Text = "3 秒后消失", AutoSize = true };
+        actionsPanel.Controls.AddRange(new Control[] { hint, outline, number, bubble, expire });
+        AddActionButton("显示 / 更新引导", () => ExecuteAsync(AgenticActions.Highlight, new Dictionary<string, object?>
+        {
+            ["guidanceId"] = "console-demo",
+            ["showOutline"] = outline.Checked, ["showNumber"] = number.Checked,
+            ["instructionNumber"] = 2, ["showBubble"] = bubble.Checked, ["hint"] = hint.Text,
+            ["placement"] = "auto", ["durationMs"] = expire.Checked ? 3000 : 0
+        }));
     }
 
     private void SetupConnectionPanel()
@@ -472,6 +492,12 @@ public partial class RemoteConsoleForm : Form
         if (!descriptor.Actions.Contains(action, StringComparer.OrdinalIgnoreCase))
         {
             MessageBox.Show(this, $"控件不支持动作 {action}。", "AgenticUI.NET");
+            return;
+        }
+
+        if (arguments?.ContainsKey("showBubble") == true && !descriptor.Capabilities.Contains(AgenticGuidanceOptions.Capability))
+        {
+            MessageBox.Show("目标不支持动态气泡，请升级目标软件中的 AgenticUI 控件包。", "AgenticUI.NET");
             return;
         }
 

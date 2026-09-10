@@ -357,6 +357,13 @@ public partial class MainForm : Form
     private static void BuildMediumPriorityTab(Panel host, int leftCol, int rightCol, int colWidth, int colGap)
     {
         var y = 16;
+        host.Controls.Add(new Label { Text = "只读契约验收（右侧为脱敏演示）", AutoSize = true, Location = new Point(leftCol, y) });
+        y += 26;
+        host.Controls.Add(new AgenticTextBox { AgenticId = "demo.readOnly", ReadOnly = true,
+            Text = "只读演示值", Location = new Point(leftCol, y), Width = colWidth });
+        host.Controls.Add(new AgenticTextBox { AgenticId = "demo.sensitiveReadOnly", ReadOnly = true, UseSystemPasswordChar = true,
+            Text = "敏感演示值", Location = new Point(rightCol, y), Width = colWidth });
+        y += 40;
         host.Controls.Add(new AgenticLabel
         {
             AgenticId = "demo.statusText",
@@ -403,8 +410,8 @@ public partial class MainForm : Form
             Size = new Size(colWidth, 160)
         };
         var company = tree.Nodes.Add("公司");
-        company.Nodes.Add("研发");
-        company.Nodes.Add("销售");
+        company.Nodes.Add("研发").Nodes.Add("设计");
+        company.Nodes.Add("销售").Nodes.Add("订单");
         company.Expand();
         host.Controls.Add(tree);
 
@@ -414,7 +421,7 @@ public partial class MainForm : Form
             AgenticDisplayName = "演示表格",
             Location = new Point(rightCol, rowTop),
             Size = new Size(colWidth, 160),
-            AllowUserToAddRows = false,
+            AllowUserToAddRows = true,
             SelectionMode = DataGridViewSelectionMode.FullRowSelect,
             AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill
         };

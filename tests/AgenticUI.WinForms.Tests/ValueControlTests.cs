@@ -52,7 +52,7 @@ public sealed class ValueControlTests
         });
     }
 
-    private static Form CreateForm() => new() { ShowInTaskbar = false, StartPosition = FormStartPosition.Manual, Location = new Point(-2000, -2000) };
+    private static Form CreateForm() => new() { ShowInTaskbar = false, StartPosition = FormStartPosition.Manual, Location = new Point(20, 20) };
     private static Task<AgenticCommandResult> Dispatch(string id, string action, object? value, string key = "value") =>
         new AgenticCommandDispatcher().DispatchAsync(new AgenticCommand { ControlId = id, Action = action, Arguments = new() { [key] = value } });
     private static void RunSta(Func<Task> test)

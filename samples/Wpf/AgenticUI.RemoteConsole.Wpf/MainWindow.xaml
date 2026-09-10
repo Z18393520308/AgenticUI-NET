@@ -74,6 +74,15 @@
     </Grid>
 
     <StackPanel Grid.Row="2" Margin="0,10,0,0">
+      <WrapPanel Margin="0,0,0,8">
+        <TextBlock Text="动态引导" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,8,0" />
+        <TextBox x:Name="GuidanceHintBox" Width="280" MaxLength="1000" Text="请核对当前内容，再继续操作。" Margin="0,0,8,0" />
+        <CheckBox x:Name="GuidanceOutlineCheck" Content="描边" IsChecked="True" VerticalAlignment="Center" Margin="0,0,8,0" />
+        <CheckBox x:Name="GuidanceNumberCheck" Content="编号 2" IsChecked="True" VerticalAlignment="Center" Margin="0,0,8,0" />
+        <CheckBox x:Name="GuidanceBubbleCheck" Content="气泡" IsChecked="True" VerticalAlignment="Center" Margin="0,0,8,0" />
+        <CheckBox x:Name="GuidanceExpireCheck" Content="3 秒后消失" VerticalAlignment="Center" Margin="0,0,8,0" />
+        <Button Content="显示 / 更新引导" Click="DynamicGuidance_OnClick" Padding="10,3" />
+      </WrapPanel>
       <WrapPanel>
         <Button Content="刷新控件" Margin="0,0,8,0" Padding="12,4" Click="Refresh_OnClick" />
         <Button Content="高亮" Margin="0,0,8,0" Padding="12,4" Click="Highlight_OnClick" />

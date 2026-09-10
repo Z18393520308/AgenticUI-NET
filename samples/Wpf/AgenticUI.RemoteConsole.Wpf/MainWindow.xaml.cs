@@ -147,6 +147,19 @@ public partial class MainWindow : Window
     private async void Highlight_OnClick(object sender, RoutedEventArgs e) =>
         await ExecuteAsync(AgenticActions.Highlight);
 
+    private async void DynamicGuidance_OnClick(object sender, RoutedEventArgs e) =>
+        await ExecuteAsync(AgenticActions.Highlight, new Dictionary<string, object?>
+        {
+            ["guidanceId"] = "console-demo",
+            ["showOutline"] = GuidanceOutlineCheck.IsChecked == true,
+            ["showNumber"] = GuidanceNumberCheck.IsChecked == true,
+            ["instructionNumber"] = 2,
+            ["showBubble"] = GuidanceBubbleCheck.IsChecked == true,
+            ["hint"] = GuidanceHintBox.Text,
+            ["placement"] = "auto",
+            ["durationMs"] = GuidanceExpireCheck.IsChecked == true ? 3000 : 0
+        });
+
     private async void ClearHighlight_OnClick(object sender, RoutedEventArgs e) =>
         await ExecuteAsync(AgenticActions.ClearHighlight);
 
@@ -407,6 +420,12 @@ public partial class MainWindow : Window
         if (!row.Descriptor.Actions.Contains(action, StringComparer.OrdinalIgnoreCase))
         {
             MessageBox.Show(this, $"控件不支持动作 {action}。", "AgenticUI.NET");
+            return;
+        }
+
+        if (arguments?.ContainsKey("showBubble") == true && !row.Descriptor.Capabilities.Contains(AgenticGuidanceOptions.Capability))
+        {
+            MessageBox.Show("目标不支持动态气泡，请升级目标软件中的 AgenticUI 控件包。", "AgenticUI.NET");
             return;
         }
 

@@ -186,10 +186,14 @@ public sealed class AgenticNamedPipeServer : IDisposable
         catch (ObjectDisposedException)
         {
         }
+        catch (OperationCanceledException)
+        {
+        }
         finally
         {
             _clients.TryRemove(id, out _);
             connection.Dispose();
+            await _registry.ClearGuidanceAsync(connection.SessionId).ConfigureAwait(false);
         }
     }
 
@@ -228,40 +232,41 @@ public sealed class AgenticNamedPipeServer : IDisposable
                     RequestId = request.RequestId,
                     Type = RemoteMessageTypes.Controls,
                     Controls = _registry.Snapshot(remotelyDiscoverableOnly: !request.IncludeHidden)
+                        .Select(AgenticPrivacy.SanitizeDescriptor).ToArray()
                 };
             case RemoteMessageTypes.Execute when request.Command is not null:
+                request.Command.SessionId = connection.SessionId;
+                var result = await _dispatcher.DispatchAsync(request.Command, cancellationToken).ConfigureAwait(false);
+                if (result.Control is not null) result.Control = AgenticPrivacy.SanitizeDescriptor(result.Control);
                 return new RemoteResponse
                 {
                     RequestId = request.RequestId,
                     Type = RemoteMessageTypes.Result,
-                    Result = await _dispatcher.DispatchAsync(request.Command, cancellationToken).ConfigureAwait(false)
+                    Result = result
                 };
             default:
                 return Error(request.RequestId, $"Unsupported request type '{request.Type}'.");
         }
     }
 
-    private async ValueTask BroadcastEventAsync(AgenticEvent message)
+    private ValueTask BroadcastEventAsync(AgenticEvent message)
     {
-        var response = new RemoteResponse { Type = RemoteMessageTypes.Event, Event = message };
+        var sensitive = message.IsSensitive;
+        if (!sensitive && _registry.TryGet(message.ControlId, out var control))
+        {
+            try { sensitive = control?.Describe().IsSensitive == true; }
+            catch { sensitive = true; }
+        }
+        var response = new RemoteResponse { Type = RemoteMessageTypes.Event,
+            Event = AgenticPrivacy.SanitizeEvent(message, sensitive) };
         foreach (var pair in _clients.ToArray())
         {
-            if (_options.RequireAuthentication && !pair.Value.IsAuthenticated)
-            {
-                continue;
-            }
-            try
-            {
-                await pair.Value.SendAsync(response, CancellationToken.None).ConfigureAwait(false);
-            }
-            catch (IOException)
-            {
-                if (_clients.TryRemove(pair.Key, out var connection))
-                {
-                    connection.Dispose();
-                }
-            }
+            if (_options.RequireAuthentication && !pair.Value.IsAuthenticated) continue;
+            // 有界队列：慢客户端断开，不阻塞 UI 事件和业务动作，也不悄悄丢失审计事件。
+            if (!pair.Value.TryQueueEvent(response) && _clients.TryRemove(pair.Key, out var connection))
+                connection.Dispose();
         }
+        return default;
     }
 
     private static RemoteResponse Error(string? requestId, string message) =>
@@ -279,12 +284,19 @@ public sealed class AgenticNamedPipeServer : IDisposable
     private sealed class ClientConnection : IDisposable
     {
         private readonly SemaphoreSlim _writeLock = new(1, 1);
+        private readonly SemaphoreSlim _eventSignal = new(0);
+        private readonly ConcurrentQueue<RemoteResponse> _events = new();
+        private readonly CancellationTokenSource _closed = new();
+        private int _eventCount;
+        private int _disposed;
+        public string SessionId { get; } = Guid.NewGuid().ToString("N");
 
         public ClientConnection(NamedPipeServerStream pipe)
         {
             Pipe = pipe;
             Reader = new StreamReader(pipe, Encoding.UTF8, false, 1024, true);
             Writer = new StreamWriter(pipe, new UTF8Encoding(false), 1024, true) { AutoFlush = true };
+            _ = PumpEventsAsync();
         }
 
         public NamedPipeServerStream Pipe { get; }
@@ -293,26 +305,67 @@ public sealed class AgenticNamedPipeServer : IDisposable
         public bool IsAuthenticated { get; set; }
         public string? ClientName { get; set; }
 
+        public bool TryQueueEvent(RemoteResponse response)
+        {
+            if (Volatile.Read(ref _disposed) != 0) return false;
+            if (Interlocked.Increment(ref _eventCount) > 256)
+            {
+                Interlocked.Decrement(ref _eventCount);
+                return false;
+            }
+            _events.Enqueue(response);
+            _eventSignal.Release();
+            return true;
+        }
+
+        private async Task PumpEventsAsync()
+        {
+            try
+            {
+                while (!_closed.IsCancellationRequested)
+                {
+                    await _eventSignal.WaitAsync(_closed.Token).ConfigureAwait(false);
+                    if (_events.TryDequeue(out var response))
+                    {
+                        Interlocked.Decrement(ref _eventCount);
+                        await SendAsync(response, _closed.Token).ConfigureAwait(false);
+                    }
+                }
+            }
+            catch (Exception exception) when (exception is IOException or ObjectDisposedException or OperationCanceledException)
+            { Dispose(); }
+        }
+
         public async Task SendAsync(RemoteResponse response, CancellationToken cancellationToken)
         {
             var json = JsonSerializer.Serialize(response, AgenticJson.Options);
-            await _writeLock.WaitAsync(cancellationToken).ConfigureAwait(false);
-            try
-            {
-                await Writer.WriteLineAsync(json).ConfigureAwait(false);
-            }
-            finally
-            {
-                _writeLock.Release();
-            }
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _closed.Token);
+            timeout.CancelAfter(TimeSpan.FromSeconds(5));
+            // net48 StreamWriter 没有带 CancellationToken 的 WriteLineAsync，用关闭管道解除慢写。
+            using var registration = timeout.Token.Register(() => Pipe.Dispose());
+            await _writeLock.WaitAsync(timeout.Token).ConfigureAwait(false);
+            try { await Writer.WriteLineAsync(json).ConfigureAwait(false); }
+            finally { _writeLock.Release(); }
         }
 
         public void Dispose()
         {
-            Reader.Dispose();
-            Writer.Dispose();
+            if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+            _closed.Cancel();
             Pipe.Dispose();
-            _writeLock.Dispose();
+            // 不在 UI/事件线程等待写锁。流先断开，读写任务自行退出。
+            _ = DisposeStreamsAsync();
+        }
+
+        private async Task DisposeStreamsAsync()
+        {
+            await _writeLock.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                try { Reader.Dispose(); Writer.Dispose(); }
+                catch (Exception exception) when (exception is IOException or ObjectDisposedException) { }
+            }
+            finally { _writeLock.Release(); }
         }
     }
 }

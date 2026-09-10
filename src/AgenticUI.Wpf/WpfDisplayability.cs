@@ -106,6 +106,7 @@ internal static class WpfDisplayability
         Window? lastEnabled = null;
         foreach (Window open in Application.Current.Windows)
         {
+            if (open is IGuidanceOverlayWindow) continue;
             if (!ReferenceEquals(open.Dispatcher, dispatcher) || !open.IsVisible)
             {
                 continue;

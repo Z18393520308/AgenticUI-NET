@@ -109,4 +109,20 @@ public sealed class AgenticControlRegistry
             _controls.Remove(id);
         }
     }
+
+    public async Task ClearGuidanceAsync(string sessionId)
+    {
+        IAgenticGuidanceControl[] targets;
+        lock (_gate)
+        {
+            targets = _controls.Values.Select(x => x.TryGetTarget(out var control) ? control : null)
+                .OfType<IAgenticGuidanceControl>().ToArray();
+        }
+        foreach (var target in targets)
+        {
+            try { await target.ClearGuidanceAsync(sessionId).ConfigureAwait(false); }
+            catch (ObjectDisposedException) { }
+            catch (InvalidOperationException) { /* 窗口可能正在关闭。 */ }
+        }
+    }
 }

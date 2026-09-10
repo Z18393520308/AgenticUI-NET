@@ -8,17 +8,18 @@ using AgenticUI;
 
 namespace AgenticUI.WinForms;
 
-internal sealed class WinFormsControlAdapter : IAgenticControl
+internal sealed class WinFormsControlAdapter : IAgenticControl, IAgenticGuidanceControl
 {
     private readonly Control _control;
     private readonly AgenticControlRegistry _registry;
     private readonly AgenticEventBus _events;
     private string? _registeredId;
-    private WinFormsHighlight? _highlight;
-    private WinFormsHighlight? _cellHighlight;
+    private readonly AgenticGuidanceCollection _highlights = new();
+    private readonly AgenticGuidanceCollection _cellHighlights = new();
     private bool _attached;
     private AgenticEventSource _activeSource = AgenticEventSource.User;
     private Dictionary<string, object?>? _lastCellState;
+    private TreeNode? _lastExpansionNode;
     private string? _lastStatusText;
 
     public WinFormsControlAdapter(
@@ -140,6 +141,7 @@ internal sealed class WinFormsControlAdapter : IAgenticControl
         {
             try
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 ExecuteOnUiThread(command);
                 completion.SetResult(AgenticCommandResult.Success(command.RequestId, DescribeOnUiThread()));
             }
@@ -161,6 +163,9 @@ internal sealed class WinFormsControlAdapter : IAgenticControl
         return completion.Task;
     }
 
+    private bool IsSensitive => Options.IsSensitive ||
+        _control is TextBox password && (password.UseSystemPasswordChar || password.PasswordChar != '\0');
+
     private AgenticControlDescriptor DescribeOnUiThread()
     {
         var id = _registeredId ?? Options.Id ?? "";
@@ -170,8 +175,9 @@ internal sealed class WinFormsControlAdapter : IAgenticControl
             Name = Options.DisplayName ?? _control.AccessibleName ?? _control.Name ?? id,
             Kind = GetKind(),
             IsTemporaryId = id.StartsWith("temporary.", StringComparison.OrdinalIgnoreCase),
-            IsSensitive = Options.IsSensitive || _control is TextBox { UseSystemPasswordChar: true },
+            IsSensitive = IsSensitive,
             IsEnabled = _control.Enabled,
+            Capabilities = new[] { AgenticGuidanceOptions.Capability },
             Actions = GetActions(),
             State = GetState()
         };
@@ -179,6 +185,12 @@ internal sealed class WinFormsControlAdapter : IAgenticControl
 
     private void ExecuteOnUiThread(AgenticCommand command)
     {
+        if (command.Action == AgenticActions.ClearHighlight) { ClearHighlight(command); return; }
+        if (!AgenticActionPolicy.IsObservation(command.Action))
+        {
+            if (!_control.Enabled || !WinFormsDisplayability.IsDisplayable(_control))
+                throw new InvalidOperationException("目标控件不可交互，禁止远程绕过禁用或隐藏状态。");
+        }
         var form = _control.FindForm();
         if (form is null ||
             form.IsDisposed ||
@@ -198,10 +210,10 @@ internal sealed class WinFormsControlAdapter : IAgenticControl
                     _control.Focus();
                     break;
                 case AgenticActions.Highlight:
-                    ShowHighlight();
+                    ShowHighlight(command);
                     break;
                 case AgenticActions.ClearHighlight:
-                    RemoveHighlight();
+                    ClearHighlight(command);
                     break;
                 case AgenticActions.MouseMove:
                 case AgenticActions.MouseClick:
@@ -233,7 +245,12 @@ internal sealed class WinFormsControlAdapter : IAgenticControl
                     closedComboBox.DroppedDown = false;
                     break;
                 case AgenticActions.SetText when _control is TextBoxBase textBox:
-                    textBox.Text = GetArgument(command, "text")?.ToString() ?? "";
+                    if (textBox.ReadOnly) throw new InvalidOperationException("文本框为只读。");
+                    var text = GetArgument(command, "text")?.ToString() ?? "";
+                    if (textBox.MaxLength > 0 && text.Length > textBox.MaxLength)
+                        throw new ArgumentException("文本超过控件 MaxLength 限制。");
+                    textBox.Text = text;
+                    foreach (Binding binding in textBox.DataBindings) binding.WriteValue();
                     break;
                 case AgenticActions.GetText when _control is TextBoxBase:
                     break;
@@ -427,6 +444,7 @@ internal sealed class WinFormsControlAdapter : IAgenticControl
 
     private void UnhookEvents()
     {
+        _lastExpansionNode = null;
         _control.MouseDown -= OnMouseDown;
         _control.MouseUp -= OnMouseUp;
         _control.Enter -= OnFocusEntered;
@@ -523,9 +541,16 @@ internal sealed class WinFormsControlAdapter : IAgenticControl
     private void OnValueChanged(object? sender, EventArgs args) =>
         Publish(AgenticEvents.ValueChanged, data: new Dictionary<string, object?> { ["value"] = GetValue() });
     private void OnTreeSelectionChanged(object? sender, TreeViewEventArgs args) =>
-        Publish(AgenticEvents.SelectionChanged, data: new Dictionary<string, object?> { ["selection"] = args.Node?.Text });
-    private void OnTreeExpanded(object? sender, TreeViewEventArgs args) => Publish(AgenticEvents.Expanded, data: new Dictionary<string, object?> { ["path"] = args.Node is null ? null : GetTreePath(args.Node) });
-    private void OnTreeCollapsed(object? sender, TreeViewEventArgs args) => Publish(AgenticEvents.Collapsed, data: new Dictionary<string, object?> { ["path"] = args.Node is null ? null : GetTreePath(args.Node) });
+        Publish(AgenticEvents.SelectionChanged, data: new Dictionary<string, object?>
+        { ["selection"] = args.Node?.Text, ["path"] = args.Node is null ? null : GetTreePath(args.Node) });
+    private void OnTreeExpanded(object? sender, TreeViewEventArgs args) => OnTreeExpansion(args, AgenticEvents.Expanded);
+    private void OnTreeCollapsed(object? sender, TreeViewEventArgs args) => OnTreeExpansion(args, AgenticEvents.Collapsed);
+    private void OnTreeExpansion(TreeViewEventArgs args, string eventName)
+    {
+        _lastExpansionNode = args.Node;
+        Publish(eventName, data: new Dictionary<string, object?>
+        { ["path"] = args.Node is null ? null : GetTreePath(args.Node), ["expanded"] = args.Node?.IsExpanded });
+    }
 
     private void OnDropDownOpened(object? sender, EventArgs args) => Publish(AgenticEvents.DropDownOpened);
     private void OnDropDownClosed(object? sender, EventArgs args) => Publish(AgenticEvents.DropDownClosed);
@@ -537,7 +562,9 @@ internal sealed class WinFormsControlAdapter : IAgenticControl
     {
         if (_registeredId is not null)
         {
-            _ = _events.PublishAsync(_registeredId, eventName, source ?? _activeSource, data);
+            var message = _events.Create(_registeredId, eventName, source ?? _activeSource, data);
+            message.IsSensitive = IsSensitive;
+            _ = _events.PublishAsync(message);
         }
     }
 
@@ -661,7 +688,11 @@ internal sealed class WinFormsControlAdapter : IAgenticControl
             ["displayable"] = WinFormsDisplayability.IsDisplayable(_control),
             ["focused"] = _control.Focused
         };
-        if (_control is TextBoxBase textBox) state["text"] = Options.IsSensitive ? null : textBox.Text;
+        if (_control is TextBoxBase textBox)
+        {
+            state["text"] = IsSensitive ? null : textBox.Text;
+            state["readOnly"] = textBox.ReadOnly;
+        }
         if (_control is CheckBox checkBox)
         {
             state["checked"] = checkBox.Checked;
@@ -723,10 +754,15 @@ internal sealed class WinFormsControlAdapter : IAgenticControl
             state["text"] = treeView.SelectedNode?.Text;
             state["selection"] = treeView.SelectedNode?.Text;
             state["path"] = treeView.SelectedNode is null ? null : GetTreePath(treeView.SelectedNode);
+            state["treeStateVersion"] = 1;
+            var expansionPath = _lastExpansionNode?.TreeView == treeView ? GetTreePath(_lastExpansionNode) : null;
+            state["expansionPath"] = expansionPath;
+            state["expanded"] = expansionPath is null ? null : _lastExpansionNode!.IsExpanded;
             state["itemCount"] = treeView.Nodes.Count;
         }
         if (_control is DataGridView grid)
         {
+            state["readOnly"] = grid.ReadOnly;
             var rows = GetGridRows(grid);
             state["selectedIndex"] = grid.CurrentRow is null ? -1 : rows.IndexOf(grid.CurrentRow);
             state["rowCount"] = rows.Count;
@@ -758,18 +794,42 @@ internal sealed class WinFormsControlAdapter : IAgenticControl
         return state;
     }
 
-    private void ShowHighlight()
+    private void ShowHighlight(AgenticCommand command)
     {
-        _highlight ??= new WinFormsHighlight(_control, Options.InstructionNumber, Options.Hint);
-        _highlight.Show();
+        var options = AgenticGuidanceOptions.FromCommand(command, Options.InstructionNumber, Options.Hint);
+        _highlights.Show(command, options, () => new WinFormsHighlight(_control));
+    }
+
+    private void ClearHighlight(AgenticCommand command)
+    {
+        var id = AgenticGuidanceOptions.ReadGuidanceId(command);
+        _highlights.Clear(command.SessionId, id);
+        _cellHighlights.Clear(command.SessionId, id);
     }
 
     private void RemoveHighlight()
     {
-        _highlight?.Dispose();
-        _highlight = null;
-        _cellHighlight?.Dispose();
-        _cellHighlight = null;
+        _highlights.Dispose();
+        _cellHighlights.Dispose();
+    }
+
+    public Task ClearGuidanceAsync(string sessionId)
+    {
+        if (_control.IsDisposed || !_control.IsHandleCreated) return Task.CompletedTask;
+        var completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        void Clear()
+        {
+            _highlights.Clear(sessionId);
+            _cellHighlights.Clear(sessionId);
+            completion.TrySetResult(true);
+        }
+        try
+        {
+            if (_control.InvokeRequired) _control.BeginInvoke((Action)Clear);
+            else Clear();
+        }
+        catch (InvalidOperationException) { completion.TrySetResult(true); }
+        return completion.Task;
     }
 
     private static object? GetArgument(AgenticCommand command, string key) =>
@@ -985,8 +1045,18 @@ internal sealed class WinFormsControlAdapter : IAgenticControl
         var column = ResolveGridColumn(grid, GetArgument(command, "column"));
         var cell = GetGridRow(grid, row).Cells[column];
         var value = NormalizeJsonValue(GetArgument(command, "value") ?? GetArgument(command, "text"));
-        cell.Value = ConvertForType(value, cell.ValueType ?? grid.Columns[column].ValueType);
+        if (grid.ReadOnly || cell.ReadOnly) throw new InvalidOperationException("目标单元格为只读。");
         grid.CurrentCell = cell;
+        if (!grid.BeginEdit(true)) throw new InvalidOperationException("表格拒绝进入编辑状态。");
+        try
+        {
+            if (grid.EditingControl is not DataGridViewTextBoxEditingControl editor)
+                throw new InvalidOperationException("setCell 当前只支持原生文本编辑列，其他列请使用其真实编辑控件。");
+            editor.Text = Convert.ToString(value, CultureInfo.CurrentCulture) ?? "";
+            grid.NotifyCurrentCellDirty(true);
+            if (!grid.EndEdit()) throw new InvalidOperationException("单元格编辑未通过原有校验。");
+        }
+        catch { grid.CancelEdit(); throw; }
         _lastCellState = new Dictionary<string, object?>
         {
             ["rowIndex"] = row,
@@ -1004,6 +1074,7 @@ internal sealed class WinFormsControlAdapter : IAgenticControl
 
     private void AddGridRow(DataGridView grid, AgenticCommand command)
     {
+        if (grid.ReadOnly || !grid.AllowUserToAddRows) throw new InvalidOperationException("表格不允许用户新增行。");
         var values = ReadObjectArgument(GetArgument(command, "values"));
         DataGridViewRow? addedRow;
         if (grid.DataSource is BindingSource source)
@@ -1042,6 +1113,7 @@ internal sealed class WinFormsControlAdapter : IAgenticControl
 
     private static void DeleteGridRow(DataGridView grid, int row)
     {
+        if (grid.ReadOnly || !grid.AllowUserToDeleteRows) throw new InvalidOperationException("表格不允许用户删除行。");
         var target = GetGridRow(grid, row);
         if (grid.DataSource is BindingSource source)
         {
@@ -1114,20 +1186,20 @@ internal sealed class WinFormsControlAdapter : IAgenticControl
         var column = ResolveGridColumn(grid, GetArgument(command, "column"));
         var target = GetGridRow(grid, row);
         ScrollGridToRow(grid, row);
-        _cellHighlight?.Dispose();
-        _cellHighlight = new WinFormsHighlight(
-            grid,
-            Options.InstructionNumber,
-            Options.Hint,
-            () =>
+        var options = AgenticGuidanceOptions.FromCommand(command, Options.InstructionNumber, Options.Hint);
+        var item = target.DataBoundItem;
+        var targetColumn = grid.Columns[column];
+        _cellHighlights.Show(command, options, () => new WinFormsHighlight(grid),
+            visual => ((WinFormsHighlight)visual).Retarget(() =>
             {
-                if (target.Index < 0) return Rectangle.Empty;
-                var bounds = grid.GetCellDisplayRectangle(column, target.Index, true);
+                if (target.Index < 0 || targetColumn.Index < 0 || !target.Visible || !targetColumn.Visible ||
+                    !ReferenceEquals(target.DataGridView, grid) || !ReferenceEquals(targetColumn.DataGridView, grid) ||
+                    !ReferenceEquals(target.DataBoundItem, item)) return Rectangle.Empty;
+                var bounds = grid.GetCellDisplayRectangle(targetColumn.Index, target.Index, true);
                 return bounds.Width <= 0 || bounds.Height <= 0
                     ? Rectangle.Empty
                     : grid.RectangleToScreen(bounds);
-            });
-        _cellHighlight.Show();
+            }));
         _lastCellState = new Dictionary<string, object?> { ["rowIndex"] = row, ["columnIndex"] = column };
     }
 
@@ -1264,18 +1336,22 @@ internal sealed class WinFormsControlAdapter : IAgenticControl
         {
             TreeNodeCollection nodes = tree.Nodes;
             TreeNode? current = null;
-            foreach (var part in path!.Split(new[] { '/' }, StringSplitOptions.RemoveEmptyEntries))
+            var parts = path!.Split('/');
+            if (parts.Length > 128 || parts.Any(string.IsNullOrWhiteSpace)) throw new ArgumentException("树路径必须由非空标题按 / 分隔。");
+            foreach (var part in parts)
             {
-                current = nodes.Cast<TreeNode>().FirstOrDefault(node => string.Equals(node.Text, part, StringComparison.OrdinalIgnoreCase))
-                    ?? throw new ArgumentOutOfRangeException(nameof(path), $"Tree node '{path}' was not found.");
+                var matches = nodes.Cast<TreeNode>().Where(node => string.Equals(node.Text, part, StringComparison.OrdinalIgnoreCase)).Take(2).ToArray();
+                if (matches.Length != 1) throw new InvalidOperationException("树路径不存在或存在同名兄弟节点，不能唯一定位。");
+                current = matches[0];
                 nodes = current.Nodes;
             }
             return current!;
         }
         if (GetArgument(command, "index") is not null) return tree.Nodes[ReadIndex(GetArgument(command, "index"))];
         var value = GetArgument(command, "value")?.ToString() ?? throw new ArgumentException("Tree action requires 'path', 'value', or 'index'.");
-        return tree.Nodes.Cast<TreeNode>().SelectMany(Flatten).FirstOrDefault(node => string.Equals(node.Text, value, StringComparison.OrdinalIgnoreCase))
-            ?? throw new ArgumentOutOfRangeException(nameof(value), $"Tree node '{value}' was not found.");
+        var matching = tree.Nodes.Cast<TreeNode>().SelectMany(Flatten).Where(node => string.Equals(node.Text, value, StringComparison.OrdinalIgnoreCase)).Take(2).ToArray();
+        if (matching.Length != 1) throw new InvalidOperationException("树节点不存在或名称不唯一，请使用完整路径。");
+        return matching[0];
     }
 
     private static IEnumerable<TreeNode> Flatten(TreeNode node)
@@ -1292,10 +1368,17 @@ internal sealed class WinFormsControlAdapter : IAgenticControl
         node.EnsureVisible();
     }
 
-    private static string GetTreePath(TreeNode node)
+    private static string? GetTreePath(TreeNode node)
     {
+        if (node.TreeView is null) return null;
         var parts = new Stack<string>();
-        for (var current = node; current is not null; current = current.Parent) parts.Push(current.Text);
+        for (var current = node; current is not null; current = current.Parent)
+        {
+            if (string.IsNullOrWhiteSpace(current.Text) || current.Text.Contains('/') || current.Text.Any(char.IsControl)) return null;
+            var siblings = current.Parent?.Nodes ?? current.TreeView.Nodes;
+            if (siblings.Cast<TreeNode>().Count(other => string.Equals(other.Text, current.Text, StringComparison.OrdinalIgnoreCase)) != 1) return null;
+            parts.Push(current.Text);
+        }
         return string.Join("/", parts);
     }
 

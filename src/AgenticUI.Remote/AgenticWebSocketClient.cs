@@ -113,39 +113,18 @@ public sealed class AgenticWebSocketClient : IAgenticRemoteClient
 
         _disposed = true;
         _lifetime.Cancel();
-        try
-        {
-            if (_socket.State is WebSocketState.Open or WebSocketState.CloseReceived)
-            {
-                _socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Closed", CancellationToken.None)
-                    .GetAwaiter()
-                    .GetResult();
-            }
-        }
-        catch (WebSocketException)
-        {
-        }
-
+        // Dispose 必须立即终止传输，不能在 UI 线程无限等待对端关闭握手。
+        _socket.Abort();
         _socket.Dispose();
         FailPending(new ObjectDisposedException(nameof(AgenticWebSocketClient)));
-        if (!_insideTransportCallback.Value)
-        {
-            try
-            {
-                _readLoop.GetAwaiter().GetResult();
-            }
-            catch (OperationCanceledException)
-            {
-            }
-            catch (WebSocketException)
-            {
-            }
-            catch (ObjectDisposedException)
-            {
-            }
-        }
+        _ = DisposeAfterReadLoopAsync();
+    }
 
-        _writeLock.Dispose();
+    private async Task DisposeAfterReadLoopAsync()
+    {
+        try { await _readLoop.ConfigureAwait(false); }
+        catch (Exception exception) when (exception is OperationCanceledException or WebSocketException or ObjectDisposedException) { }
+        // 发送调用可能正在 finally 中释放写锁，因此不抢先销毁其 SemaphoreSlim。
         _lifetime.Dispose();
     }
 

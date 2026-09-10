@@ -86,13 +86,16 @@ public sealed class AgenticInteractionRecorder : IDisposable
             case AgenticEvents.Clicked:
                 return Command(message.ControlId, AgenticActions.Click);
             case AgenticEvents.TextChanged:
-                if (_registry.TryGet(message.ControlId, out var textControl) &&
-                    textControl?.Describe().IsSensitive == true &&
-                    !_options.RecordSensitiveText)
+                if (!_options.RecordSensitiveText && (message.IsSensitive ||
+                    (_registry.TryGet(message.ControlId, out var textControl) && textControl?.Describe().IsSensitive == true)))
                 {
                     return null;
                 }
                 return Command(message.ControlId, AgenticActions.SetText, "text", Value(message, "text"));
+            case AgenticEvents.ValueChanged:
+                if (message.IsSensitive && !_options.RecordSensitiveText) return null;
+                return message.Data.ContainsKey("value")
+                    ? Command(message.ControlId, AgenticActions.SetValue, "value", Value(message, "value")) : null;
             case AgenticEvents.CheckedChanged:
                 return Command(
                     message.ControlId,
@@ -100,11 +103,21 @@ public sealed class AgenticInteractionRecorder : IDisposable
                     "checked",
                     Value(message, "checked"));
             case AgenticEvents.SelectionChanged:
+                if (message.IsSensitive && !_options.RecordSensitiveText) return null;
+                if (!string.IsNullOrWhiteSpace(Value(message, "path")?.ToString()))
+                    return Command(message.ControlId, AgenticActions.SelectItem, "path", Value(message, "path"));
+                if (!message.Data.ContainsKey("index")) return null;
                 return Command(
                     message.ControlId,
                     AgenticActions.SelectItem,
                     "index",
                     Value(message, "index"));
+            case AgenticEvents.Expanded:
+            case AgenticEvents.Collapsed:
+                if (message.IsSensitive && !_options.RecordSensitiveText) return null;
+                return !string.IsNullOrWhiteSpace(Value(message, "path")?.ToString())
+                    ? Command(message.ControlId, message.Name == AgenticEvents.Expanded ? AgenticActions.Expand : AgenticActions.Collapse,
+                        "path", Value(message, "path")) : null;
             default:
                 return null;
         }

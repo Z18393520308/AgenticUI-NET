@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+## 0.6.0
+
+- 新增 `dynamicGuidance.v1`：远程独立控制描边、步骤编号、气泡显隐/文本、位置和时长；
+  同一引导可动态更新，显式隐藏不会回退静态 Hint。
+- WPF/WinForms 引导按连接隔离，支持断线、卸载、超时清理，使用穿透、非激活的拥有者窗口；
+  增加中文换行、屏幕工作区约束和单元格目标失效处理。
+- 强化只读、禁用和可展示状态检查；WPF 点击复用原控件 OnClick/ICommand，文本编辑保留绑定。
+- DataGrid 新增/删除尊重用户权限开关；setCell 改走原生文本单元格编辑/提交校验流程，
+  非文本自定义编辑列暂不支持，不能退回反射修改数据对象绕过校验。
+- 修复密码掩码控件状态泄露、敏感事件广播与本地日志脱敏不一致、事件订阅异常影响命令结果、
+  拒绝请求遗漏审计及值变化录制缺失；Pipe 事件使用有界发送队列，慢连接断开。
+- Gateway 请求去重改为最近 2048 个 ID 的窗口，超过该数量后连接可继续使用；不承诺跨连接
+  或窗口外业务幂等。认证握手限时 10 秒，UDP 发现尊重显式关闭，WSS Dispose 不等待无限关闭握手。
+- 更新两个 Remote Console 动态引导演示；新增 WPF 界面测试、动态协议回归和真实 WSS/TLS 集成测试。
+- 第三阶段：文本框/DataGrid 返回只读状态；敏感状态只保留严格布尔类型的 readOnly。
+- WPF / WinForms 树节点统一 path、treeStateVersion、expansionPath 和 expanded；补齐选择与展开/折叠语义事件及路径录制。
+- WPF 路径支持原生节点和已生成的绑定容器；歧义路径不猜测，节点属性修改保留绑定。
+- 新增 Windows 联合验收入口、只读与三级树 Demo，以及跨项目状态匹配回归。
+
 ## 0.5.0
 
 - `AgenticUI.Remote` 新增统一的 `IAgenticRemoteClient` 抽象和 `AgenticWebSocketClient`，
