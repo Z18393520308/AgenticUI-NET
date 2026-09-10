@@ -1,12 +1,17 @@
 # Windows 联合验收入口
 
-第三阶段已准备源码、联调包和脚本；**当前尚未在 Windows 执行此脚本或人工视觉验收**。
+维护者已反馈本次高亮修复测试无问题，并授权发布 `0.6.1`。
+本文件保留联调包验收流程；自动测试以 Windows CI 为准，未逐项报告的人工场景仍需按清单验证。
 
 ## 1. 准备两份最新源码
 
-先把本次修改同步到 Windows，包含新增文件。仅拉取 GitHub 不能获得尚未提交的本地修改。
+把最新控件源码同步到 Windows，包含新增测试与脚本；配套 Agent 仓库的本地修改需单独同步。
 控件库与工控机 Agent 保持两个独立仓库；不需要固定放置位置，不合并 .git。
 请同步 Agent 的 packages、Directory.Build.props 和 scripts/verify.ps1。
+当前高亮修复联调包为 `0.6.0-dev.guidance.3`，同时同步新增
+scripts/verify-guidance-binaries.ps1 和机器可读包清单；旧 .2 不含布局循环修复。
+正式使用请升级四个依赖中的所需包至 `0.6.1`。上述 `.3` 校验清单仅适用于对应联调包，
+不能用来校验正式包或手改版本字段后继续使用；两种版本的 DLL 哈希不相同。
 
 需要 .NET 8 SDK、.NET 8 Windows Desktop Runtime。net48 实机验收还需要 .NET Framework 4.8；
 现有两套 Workbench 为 net8.0-windows，构建 net48 库不等于运行过 net48 宿主。
@@ -26,6 +31,8 @@ PowerShell 5.1 或 7 均可按脚本语法执行；脚本已使用 UTF-8 BOM 兼
 脚本依次执行：控件方案还原、Release 构建（含 net48 库）、整个控件方案测试；检查 Agent
 当前包版本及 SHA-256，然后复用 Agent 的 7 步 verify.ps1，使用全新独立 NuGet 缓存，
 避免同版本缓存混用。任何命令非零退出都会失败，不会继续宣称全部通过。
+Agent 的第 7 步还会核对业务应用输出中的 Core/Remote/Wpf DLL 与包内二进制是否一致。
+该检查针对磁盘文件，不检查正在运行的进程；关闭旧进程并从已验证目录重启是必须步骤。
 
 结果位于控件仓库忽略目录 `artifacts/windows-acceptance/<本次编号>/`：
 
@@ -61,6 +68,7 @@ Workbench 保持展示目标所在标签页，必要时滚动到控件位置，�
 - `demo.tree`：公司/研发/设计、公司/销售/订单。选择设计后展开销售，应得到不同的 path
   和 expansionPath；再人工折叠，检查 collapsed 的路径与 expanded=false。
 - 动态引导：分别测试仅描边、仅编号、仅气泡，修改气泡后原位更新；显式隐藏不回退旧 Hint。
+- 高亮显示期间窗口可以拖动，人工点击与输入正常；连续 setText/getText 均返回，取消后无残留。
 - 两个连接分别提示，断开或取消其中一个，只清理其所属提示。
 - 表格滚动/排序、多屏、100%/150%/200% DPI、窗口移动与模态弹窗。
 
@@ -70,6 +78,16 @@ Workbench 保持展示目标所在标签页，必要时滚动到控件位置，�
 使用测试数据库、测试账号；配置真实模型需要自行授权，密钥只在本机保存。
 逐一验证演示、智能、人工引导、技能保存/回放、手动预览与任务引导并存、取消与断线。
 只有本机链路通过后，再验证独立 WSS Gateway 的可信证书、认证和连接隔离。
+
+针对高亮布局循环的自动回归可单独运行（控件库根目录）：
+
+```powershell
+dotnet test tests/AgenticUI.Wpf.Tests/AgenticUI.Wpf.Tests.csproj -c Release --filter "FullyQualifiedName~HighlightReturnsToIdleAfterResizeAndHintUpdate|FullyQualifiedName~NamedPipeHighlightThenTextCommandsCompleteAndReturnToIdle"
+```
+
+共 3 个用例：有/无气泡的布局稳定检查、真实管道上的高亮后连续读写检查。
+测试等待低优先级 ApplicationIdle 并设置超时，避免只验证高亮命令已返回却漏掉持续重排。
+当前 macOS 仅完成这些测试的编译；必须在 Windows 上运行，不将其标为已通过。
 
 若有问题，提供复现步骤、目标 controlId、action、已脱敏日志、TRX 和截图；不要提供密钥或
 真实业务数据。将问题按控件端/控制端分别修复，然后重复对应测试。

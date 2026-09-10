@@ -10,9 +10,10 @@ Windows Forms 应用中的控件可以被稳定识别、观察、高亮、记录
 控件本身不包含 AI：人和 AI 控制端使用同一套真实界面和业务处理；模型调用、任务规划、
 技能学习属于外部配套控制端，不是控件库的必需依赖。
 
-> 当前稳定版为 `0.6.0`，默认仍只提供本机 Named Pipe。可选的
+> 当前稳定版为 `0.6.1`，默认仍只提供本机 Named Pipe。可选的
 > `AgenticUI.Gateway` 必须显式部署，并且只接受 WSS/TLS；UDP 仅用于可选发现。
 
+`0.6.1` 修复 WPF 高亮覆盖层反复触发布局造成的卡顿，建议使用动态引导的应用升级。
 `0.6.0` 新增远程动态描边、编号和气泡，详见
 [动态引导使用文档](docs/guidance.zh-CN.md)。
 第三阶段联调补充[只读/树节点状态契约](docs/control-state-contract.zh-CN.md)，
@@ -25,15 +26,15 @@ Windows Forms 应用中的控件可以被稳定识别、观察、高亮、记录
 WPF：
 
 ```powershell
-dotnet add package AgenticUI.Wpf --version 0.6.0
-dotnet add package AgenticUI.Remote --version 0.6.0
+dotnet add package AgenticUI.Wpf --version 0.6.1
+dotnet add package AgenticUI.Remote --version 0.6.1
 ```
 
 WinForms：
 
 ```powershell
-dotnet add package AgenticUI.WinForms --version 0.6.0
-dotnet add package AgenticUI.Remote --version 0.6.0
+dotnet add package AgenticUI.WinForms --version 0.6.1
+dotnet add package AgenticUI.Remote --version 0.6.1
 ```
 
 只使用协议、注册表、日志和命令分发时安装 `AgenticUI.Core`。完整步骤见
@@ -276,7 +277,7 @@ await client.ExecuteAsync(new AgenticCommand
 
 ## NuGet 包
 
-`0.6.0` 提供四个包：
+`0.6.1` 提供四个包：
 
 - [`AgenticUI.Core`](https://www.nuget.org/packages/AgenticUI.Core)
 - [`AgenticUI.Remote`](https://www.nuget.org/packages/AgenticUI.Remote)

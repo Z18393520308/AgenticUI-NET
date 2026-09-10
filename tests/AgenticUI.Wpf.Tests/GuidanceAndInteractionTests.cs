@@ -5,6 +5,7 @@ using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Threading;
+using AgenticUI.Remote;
 using AgenticUI.Wpf;
 using Xunit;
 
@@ -14,6 +15,113 @@ namespace AgenticUI.Wpf.Tests;
 
 public sealed class GuidanceAndInteractionTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void HighlightReturnsToIdleAfterResizeAndHintUpdate(bool showBubble) => RunSta(async () =>
+    {
+        var text = new AgenticTextBox { AgenticId = "wpf.guidance.idle", Width = 160, Height = 32 };
+        var window = new Window { Content = text, Width = 380, Height = 240 };
+        try
+        {
+            window.Show(); window.UpdateLayout();
+            var dispatcher = new AgenticCommandDispatcher();
+            var command = new AgenticCommand
+            {
+                ControlId = text.AgenticId, Action = AgenticActions.Highlight, SessionId = "idle-check",
+                Arguments = { ["showBubble"] = showBubble, ["hint"] = "请输入测试账号", ["instructionNumber"] = 1 }
+            };
+            var result = await dispatcher.DispatchAsync(command);
+            Assert.True(result.Succeeded, result.Error);
+            await WaitForUiIdleAsync(window.Dispatcher);
+            var overlay = Assert.Single(window.OwnedWindows.Cast<Window>());
+
+            // 真实窗口和控件布局变化仍应刷新引导，但刷新结束后必须恢复空闲。
+            window.Left += 20;
+            window.Width += 60;
+            text.Width += 40;
+            await WaitForUiIdleAsync(window.Dispatcher);
+            command.Arguments["hint"] = "更新后的远程提示，需要重新计算气泡布局。";
+            result = await dispatcher.DispatchAsync(command);
+            Assert.True(result.Succeeded, result.Error);
+            await WaitForUiIdleAsync(window.Dispatcher);
+            Assert.Same(overlay, Assert.Single(window.OwnedWindows.Cast<Window>()));
+
+            result = await dispatcher.DispatchAsync(new AgenticCommand
+            {
+                ControlId = text.AgenticId, Action = AgenticActions.ClearHighlight, SessionId = "idle-check"
+            });
+            Assert.True(result.Succeeded, result.Error);
+            await WaitForUiIdleAsync(window.Dispatcher);
+            Assert.Empty(window.OwnedWindows.Cast<Window>());
+        }
+        finally { window.Close(); }
+    });
+
+    [Fact]
+    public void NamedPipeHighlightThenTextCommandsCompleteAndReturnToIdle() => RunSta(async () =>
+    {
+        var text = new AgenticTextBox { AgenticId = "wpf.guidance.pipe", Width = 180, Height = 32 };
+        var window = new Window { Content = text, Width = 380, Height = 240 };
+        var pipeName = "agenticui-wpf-idle-" + Guid.NewGuid().ToString("N");
+        using var server = new AgenticNamedPipeServer(pipeName);
+        // 该测试只使用随机管道、运行时令牌和测试窗口，不接业务数据库或模型。
+        try
+        {
+            window.Show(); window.UpdateLayout();
+            // 客户端和服务端通过真实命名管道交互，覆盖服务端调度到 WPF UI 线程的路径。
+            server.Start();
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(12));
+            using var client = await AgenticNamedPipeClient.ConnectAsync(server.AuthenticationToken,
+                pipeName: pipeName, cancellationToken: timeout.Token);
+            var highlighted = await client.ExecuteAsync(new AgenticCommand
+            {
+                ControlId = text.AgenticId, Action = AgenticActions.Highlight,
+                Arguments = { ["showBubble"] = true, ["hint"] = "准备填写测试文字" }
+            }, timeout.Token);
+            Assert.True(highlighted.Result?.Succeeded == true, highlighted.Error ?? highlighted.Result?.Error);
+            await WaitForUiIdleAsync(window.Dispatcher);
+            Assert.Single(window.OwnedWindows.Cast<Window>());
+
+            for (var index = 0; index < 3; index++)
+            {
+                var expected = "test-value-" + index;
+                var written = await client.ExecuteAsync(new AgenticCommand
+                {
+                    ControlId = text.AgenticId, Action = AgenticActions.SetText,
+                    Arguments = { ["text"] = expected }
+                }, timeout.Token);
+                Assert.True(written.Result?.Succeeded == true, written.Error ?? written.Result?.Error);
+                var read = await client.ExecuteAsync(new AgenticCommand
+                {
+                    ControlId = text.AgenticId, Action = AgenticActions.GetText
+                }, timeout.Token);
+                Assert.True(read.Result?.Succeeded == true, read.Error ?? read.Result?.Error);
+                Assert.Equal(expected, read.Result!.Control!.State["text"]?.ToString());
+                Assert.Equal(expected, text.Text);
+                await WaitForUiIdleAsync(window.Dispatcher);
+            }
+
+            var cleared = await client.ExecuteAsync(new AgenticCommand
+            {
+                ControlId = text.AgenticId, Action = AgenticActions.ClearHighlight
+            }, timeout.Token);
+            Assert.True(cleared.Result?.Succeeded == true, cleared.Error ?? cleared.Result?.Error);
+            await WaitForUiIdleAsync(window.Dispatcher);
+            Assert.Empty(window.OwnedWindows.Cast<Window>());
+        }
+        finally { window.Close(); }
+    });
+
+    private static async Task WaitForUiIdleAsync(Dispatcher dispatcher)
+    {
+        // 普通优先级的命令能返回，不代表布局循环已经停止。低优先级探针能发现
+        // LayoutUpdated -> InvalidateVisual 持续占用布局队列的问题；超时必须让测试失败。
+        var idle = dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle);
+        try { await idle.Task.WaitAsync(TimeSpan.FromSeconds(3)); }
+        finally { if (idle.Status == DispatcherOperationStatus.Pending) idle.Abort(); }
+    }
+
     [Fact]
     public void DynamicGuidanceUpdatesWithoutClickOrFocusAndCleansSession() => RunSta(async () =>
     {

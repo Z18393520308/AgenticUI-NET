@@ -1,8 +1,44 @@
 # 动态引导升级：实现与验收记录
 
 日期：2026-09-10。下文保留本地开发阶段的验收记录。
-维护者随后要求提交、推送并发布 0.6.0，自动测试结果以该版本 Windows CI 为准；
+维护者反馈本次高亮修复测试无问题，授权将其作为正式版 `0.6.1` 发布。
+这是维护者的验收反馈，不代表本地 macOS 已运行 Windows 测试，也不扩展为全部 DPI、
+net48 宿主和真实模型场景均已验收；本次 Windows 自动测试由 CI 和发布工作流执行。
+此前维护者要求提交、推送并发布 0.6.0，自动测试结果以该版本 Windows CI 为准；
 人工视觉验收和跨仓库真实模型联调仍未完成。
+
+## 高亮布局修复包联调（2026-09-10）
+
+控件源码提交 `934641f` 已修复 WPF 高亮反复触发布局的问题，但配套 Agent 原先使用的
+`0.6.0-dev.guidance.2` 包不包含它。本轮基于该生产源码生成新的 `.3` 联调包，
+整组更新 Core、Remote、Wpf、WinForms；旧包保持不变，没有改动正式版本号或发布标签。
+
+- WPF 新增 3 个回归用例：有/无气泡时高亮、窗口移动/尺寸变化、目标尺寸和文案更新后
+  可到达 ApplicationIdle；真实 Named Pipe 高亮后连续三轮 setText/getText 并清理。
+  命令与空闲等待均有超时，避免普通优先级命令返回掩盖持续布局；Windows 运行仍待完成。
+- Agent 用独立缓存还原四库中的实际依赖（Core/Remote/Wpf），没有使用源码引用。
+  确认包版本、依赖版本、还原来源，应用输出三个 DLL 与对应 nupkg 内文件 SHA-256 完全一致。
+- Wpf 包的 net48 与 net8.0-windows7.0 二进制均检查到 `_updating`、`_lastTarget`、
+  `_lastOptions`、`UpdateOverlayCore` 防护标识；元数据检查不替代 Windows 运行测试。
+- 新增 Agent 的 verify-guidance-binaries.ps1，可独立检查实际部署目录，并接入原 verify.ps1。
+  控件 Windows 联合入口继续调用后者；磁盘 DLL 校验通过后仍须关闭旧进程并重新启动。
+
+本轮 macOS 实际验证：
+
+| 项目 | 结果 |
+| --- | --- |
+| 控件完整方案 Release，含 net48 和新增 WPF 测试 | 构建通过，0 警告、0 错误 |
+| 控件 Core / Gateway | 39/39、11/11 通过 |
+| Agent 完整方案（本地 .3 包，独立缓存） | 构建通过，0 警告、0 错误 |
+| Agent 核心 / 可移植编排 / 离线评测 | 173/173、29/29、5/5 通过 |
+| 三个应用 DLL 与包内二进制比对 | SHA-256 全部一致 |
+| WPF / WinForms / Controller Windows 测试 | 仅编译，未运行 |
+| PowerShell 验证入口和人工拖动、输入、DPI 验收 | 当前机器无 PowerShell 和 Windows Desktop Runtime，未执行 |
+
+两仓库 TRX 位于各自的 `artifacts/guidance-layout-fix-tests/`。
+本轮只生成本地联调产物、测试及文档，没有提交、推送、创建标签或发布公共 NuGet。
+下一步按 [Windows 联合验收入口](windows-acceptance.zh-CN.md) 执行，不将本地编译通过
+表述为 Windows 卡死已实机消除。下方第三阶段和第一轮记录为历史基线。
 
 ## 第三阶段补充（2026-09-10）
 

@@ -3,7 +3,7 @@
 当前源码新增 [远程动态气泡与高亮](guidance.zh-CN.md)，由远程控制端决定展示内容和显隐，
 不要求控件预先写死 Hint。此功能从 0.6.0 起提供，可运行两套 Remote Console 联调。
 
-本指南以 `0.6.0` 为例。WPF 和 WinForms 应用均可使用 .NET 8；组件库同时兼容
+本指南以 `0.6.1` 为例。WPF 和 WinForms 应用均可使用 .NET 8；组件库同时兼容
 .NET Framework 4.8。
 
 ## 1. 安装包
@@ -11,21 +11,21 @@
 WPF：
 
 ```powershell
-dotnet add package AgenticUI.Wpf --version 0.6.0
-dotnet add package AgenticUI.Remote --version 0.6.0
+dotnet add package AgenticUI.Wpf --version 0.6.1
+dotnet add package AgenticUI.Remote --version 0.6.1
 ```
 
 WinForms：
 
 ```powershell
-dotnet add package AgenticUI.WinForms --version 0.6.0
-dotnet add package AgenticUI.Remote --version 0.6.0
+dotnet add package AgenticUI.WinForms --version 0.6.1
+dotnet add package AgenticUI.Remote --version 0.6.1
 ```
 
 只使用协议、注册表、日志和命令分发时安装：
 
 ```powershell
-dotnet add package AgenticUI.Core --version 0.6.0
+dotnet add package AgenticUI.Core --version 0.6.1
 ```
 
 ## 2. 为控件添加语义身份
@@ -88,7 +88,7 @@ server.Start();
 var token = server.AuthenticationToken;
 ```
 
-稳定版 `0.6.0` 默认只使用本机 Named Pipe，不监听 TCP。可选的独立
+稳定版 `0.6.1` 默认只使用本机 Named Pipe，不监听 TCP。可选的独立
 `AgenticUI.Gateway` 使用 WSS/TLS 转发到本机管道，桌面应用本身仍不监听网络端口。连接令牌
 拥有本次会话的操作权限，不要写入源码、日志或版本控制。跨机器部署见
 [Gateway 安全部署指南](gateway.zh-CN.md)。
