@@ -55,7 +55,14 @@ public sealed class GuidanceAndInteractionTests
             await WaitForUiIdleAsync(window.Dispatcher);
             Assert.Empty(window.OwnedWindows.Cast<Window>());
         }
-        finally { window.Close(); }
+        finally
+        {
+            // 测试会立即关闭独立 Dispatcher，不能依赖稍后才分发的 Unloaded。
+            // 两组参数故意复用同一稳定 ID；退出前显式拆除适配器，防止污染下一组。
+            try { AgenticProperties.SetEnabled(text, false); }
+            finally { window.Close(); }
+            Assert.False(AgenticControlRegistry.Default.TryGet(text.AgenticId!, out _));
+        }
     });
 
     [Fact]
@@ -110,7 +117,12 @@ public sealed class GuidanceAndInteractionTests
             await WaitForUiIdleAsync(window.Dispatcher);
             Assert.Empty(window.OwnedWindows.Cast<Window>());
         }
-        finally { window.Close(); }
+        finally
+        {
+            try { AgenticProperties.SetEnabled(text, false); }
+            finally { window.Close(); }
+            Assert.False(AgenticControlRegistry.Default.TryGet(text.AgenticId!, out _));
+        }
     });
 
     private static async Task WaitForUiIdleAsync(Dispatcher dispatcher)
