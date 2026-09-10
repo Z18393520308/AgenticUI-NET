@@ -22,7 +22,9 @@ public sealed class WebSocketIntegrationTests
     {
         using var key = RSA.Create(2048);
         var request = new CertificateRequest("CN=localhost", key, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
-        using var certificate = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddMinutes(-1), DateTimeOffset.UtcNow.AddHours(1));
+        using var generated = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddMinutes(-1), DateTimeOffset.UtcNow.AddHours(1));
+        // Import the test key through PKCS#12 so Windows Schannel can use it for server TLS.
+        using var certificate = new X509Certificate2(generated.Export(X509ContentType.Pfx));
         var registry = new AgenticControlRegistry(); var bus = new AgenticEventBus();
         var target = new Target(); registry.Register(target, "target");
         var pipeName = "aui-" + Guid.NewGuid().ToString("N");

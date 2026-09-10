@@ -18,6 +18,7 @@ internal sealed class WpfHighlight : IAgenticGuidanceVisual
     private HighlightOverlayWindow? _overlay;
     private Window? _owner;
     private AgenticGuidanceOptions _options = new();
+    private bool _updating;
     public bool IsDisposed { get; private set; }
 
     public WpfHighlight(FrameworkElement element, Func<bool>? isTargetValid = null)
@@ -71,6 +72,14 @@ internal sealed class WpfHighlight : IAgenticGuidanceVisual
 
     private void UpdateOverlay()
     {
+        if (_updating) return;
+        _updating = true;
+        try { UpdateOverlayCore(); }
+        finally { _updating = false; }
+    }
+
+    private void UpdateOverlayCore()
+    {
         if (_overlay is null || IsDisposed) return;
         if (_isTargetValid?.Invoke() == false) { Dispose(); return; }
         if (_owner is null || _owner.WindowState == WindowState.Minimized ||
@@ -113,6 +122,10 @@ internal sealed class WpfHighlight : IAgenticGuidanceVisual
         private AgenticGuidanceOptions _options = new();
         private Rect _outline, _badge, _bubble;
         private FormattedText? _hintText;
+        private Rect _lastTarget;
+        private double _lastScale;
+        private NativeRect _lastWork;
+        private AgenticGuidanceOptions? _lastOptions;
         private static readonly Brush Accent = CreateAccent();
         private static Brush CreateAccent()
         {
@@ -149,6 +162,14 @@ internal sealed class WpfHighlight : IAgenticGuidanceVisual
             var monitor = MonitorFromRect(ref nativeRect, 2);
             var info = new MonitorInfo { Size = Marshal.SizeOf(typeof(MonitorInfo)) };
             if (!GetMonitorInfo(monitor, ref info)) throw new InvalidOperationException("无法读取引导目标所在屏幕。");
+            // LayoutUpdated also fires for our overlay. An unchanged target must not
+            // reposition or invalidate it again, otherwise layout never becomes idle.
+            if (_lastTarget == target && _lastScale == scale &&
+                _lastWork.Equals(info.Work) && ReferenceEquals(_lastOptions, options)) return;
+            _lastTarget = target;
+            _lastScale = scale;
+            _lastWork = info.Work;
+            _lastOptions = options;
             var work = new GuidanceRect(info.Work.Left, info.Work.Top,
                 info.Work.Right - info.Work.Left, info.Work.Bottom - info.Work.Top);
             _hintText = options.ShowBubble ? CreateText(options.Hint!, 13) : null;
