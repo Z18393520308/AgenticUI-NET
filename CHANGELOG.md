@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- 移除无人使用的独立 Gateway 程序及其启动配置，网络服务统一由应用内宿主管理；迁移网络测试和部署文档。
+
+- 新增应用级 AgenticApplicationHost：通过 agenticui.json 控制本机管道、内嵌 WSS 和 UDP 发现，
+  网络默认关闭，兼容 net8/net48；控件不包含 AI。
+- 两个 Workbench 接入应用生命周期与配置文件，本机默认随机令牌；新增配置、管道和 WSS 转发测试。
+- 增加内嵌网关部署说明，明确 Windows HTTP.sys 证书/URL 授权、动作白名单及重启生效边界。
+
 ## 0.6.1
 
 - 修复 WPF 高亮覆盖层反复触发布局、导致界面卡顿或后续远程命令等待的问题；

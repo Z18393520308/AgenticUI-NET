@@ -12,7 +12,7 @@ AgenticUI.NET 当前公开仓库中的全部代码构成社区版，并按
 - WPF 与 WinForms 控件及原生控件接入；
 - 描边、编号和提示气泡；
 - 本机 Named Pipe 网关与令牌认证；
-- 独立的基础 WSS/TLS Gateway 与默认关闭的 UDP 发现；
+- 应用内基础 WSS/TLS Gateway 与默认关闭的 UDP 发现；
 - 本地审计日志、默认脱敏、录制与回放；
 - 示例、文档、自动化测试和社区问题修复。
 

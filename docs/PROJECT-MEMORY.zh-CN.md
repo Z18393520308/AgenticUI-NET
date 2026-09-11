@@ -23,7 +23,7 @@
 - 高亮能力保持抽象；当前实现描边、步骤编号和提示气泡。高亮不等于按下控件。
 - 需要语义操作录制与回放。
 - 提供原生外观和可选现代主题，不强制宿主更换视觉风格。
-- 社区版默认远程能力仅限本机 Named Pipe；跨机器访问必须通过独立 `AgenticUI.Gateway`
+- 社区版默认远程能力仅限本机 Named Pipe；跨机器访问必须通过应用内网关
   使用 WSS/TLS 转发，桌面应用不得直接开放 TCP 控制端口。
 - UDP 只允许作为默认关闭的局域网发现广播，不得承载认证、命令或事件。
 - 控制端可以是 AI Agent、调试控制台、企业服务或另一个客户端；核心协议不依赖特定大模型或 Agent。
@@ -56,7 +56,7 @@
 - JSONL 审计日志、默认脱敏、用户语义操作录制和命令回放。
 - WPF `AdornerLayer` 高亮和 WinForms 顶层点击穿透覆盖层。
 - 本机 Named Pipe JSONL 协议，默认随机生成 256 位令牌。
-- 独立 `.NET 8` `AgenticUI.Gateway`：WSS/TLS 到本机 Named Pipe 转发，使用两把不同令牌，
+- 应用内 WSS/TLS 网关：WSS/TLS 到本机 Named Pipe 转发，使用两把不同令牌，
   并带连接数、速率、消息大小、Origin 和动作白名单限制。
 - `AgenticUI.Remote` 提供统一的 `IAgenticRemoteClient`、Named Pipe/WSS 客户端和按需 UDP
   Gateway 自动发现；发现报文不含令牌、Pipe 名称和控件数据。

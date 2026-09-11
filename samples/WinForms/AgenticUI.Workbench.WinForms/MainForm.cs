@@ -5,9 +5,8 @@ namespace AgenticUI.Workbench.WinForms;
 
 public partial class MainForm : Form
 {
-    private const string PipeName = "AgenticUI.NET";
 
-    private readonly AgenticNamedPipeServer _server;
+    private readonly AgenticApplicationHost _host;
     private readonly AgenticLogRecorder _recorder;
     private readonly string _pipeStatusText;
     private readonly string _tokenStatusText;
@@ -32,17 +31,11 @@ public partial class MainForm : Form
             "AgenticUI.NET",
             "workbench-events.jsonl");
         _recorder = new AgenticLogRecorder(logPath);
-        _server = new AgenticNamedPipeServer(
-            PipeName,
-            options: new AgenticNamedPipeServerOptions
-            {
-                AuthenticationToken = AgenticRemoteSecurity.ResolveDevelopmentPipeToken()
-            });
-        _server.Start();
+        _host = AgenticApplicationHost.Current ?? AgenticApplicationHost.StartFromConfiguration();
 
         BuildDemoLayout();
-        _pipeStatusText = $"管道 {PipeName}";
-        _tokenStatusText = $"令牌 {_server.AuthenticationToken}";
+        _pipeStatusText = _host.LastError ?? (_host.LocalRunning ? $"管道 {_host.PipeName}" : "通信已关闭");
+        _tokenStatusText = _host.LocalRunning ? $"令牌 {_host.LocalAuthenticationToken}" : "无本机令牌";
         pipeStatusLabel.Text = _pipeStatusText;
         tokenStatusLabel.Text = _tokenStatusText;
 
@@ -51,10 +44,10 @@ public partial class MainForm : Form
     }
 
     private void PipeStatusLabel_Click(object? sender, EventArgs e) =>
-        CopyStatusValue(PipeName, "已复制管道名");
+        CopyStatusValue(_host.PipeName, "已复制管道名");
 
     private void TokenStatusLabel_Click(object? sender, EventArgs e) =>
-        CopyStatusValue(_server.AuthenticationToken, "已复制令牌");
+        CopyStatusValue(_host.LocalAuthenticationToken, "已复制令牌");
 
     private void CopyStatusValue(string value, string hint)
     {
@@ -550,6 +543,5 @@ public partial class MainForm : Form
         _statusResetTimer?.Stop();
         _statusResetTimer?.Dispose();
         _recorder.Dispose();
-        _server.Dispose();
     }
 }

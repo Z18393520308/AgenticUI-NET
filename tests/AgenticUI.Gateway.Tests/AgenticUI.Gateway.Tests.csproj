@@ -13,6 +13,7 @@
     </PackageReference>
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\src\AgenticUI.Gateway\AgenticUI.Gateway.csproj" />
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="..\..\src\AgenticUI.Remote\AgenticUI.Remote.csproj" />
   </ItemGroup>
 </Project>

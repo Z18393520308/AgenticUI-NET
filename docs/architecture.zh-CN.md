@@ -43,9 +43,9 @@ Dispatcher/消息线程执行。
 
 ### 可选网络网关
 
-`AgenticUI.Gateway` 是独立 `.NET 8` 进程，不进入 WPF/WinForms 应用进程。它只在 TLS 上接受
+`AgenticApplicationHost` 在 WPF/WinForms 应用内托管网络服务，兼容 net8/net48。它只在 TLS 上接受
 WebSocket 请求，使用独立的 Gateway 令牌认证远程客户端，经连接数、速率和动作白名单检查后，
-再用另一把本机令牌连接 `AgenticUI.Remote` Named Pipe。桌面应用继续只暴露本机管道。
+再用另一把本机令牌连接 `AgenticUI.Remote` Named Pipe。网络默认关闭，由 agenticui.json 显式开启。
 
 可选 UDP 服务是单向广播器，仅公布 WSS 地址和非敏感服务元数据。控制面始终走 TCP/TLS
 体系，UDP 不参与认证、命令和事件传输。
@@ -72,7 +72,7 @@ WebSocket 请求，使用独立的 Gateway 令牌认证远程客户端，经连�
 ## 安全边界
 
 - WPF/WinForms 控件库和 `AgenticUI.Remote` 不监听 TCP，不默认暴露局域网或互联网端口。
-- 独立 Gateway 默认不随桌面应用启动，配置不完整时拒绝启动，只接受 WSS/TLS。
+- 应用内 Gateway 按配置随桌面应用启动，配置不完整时拒绝启动，只接受 WSS/TLS。
 - Gateway 的公网令牌与本机 Pipe 令牌必须不同；动作还受白名单和宿主授权器双重约束。
 - UDP 发现默认关闭且只发送公开元数据，不接收控制命令。
 - 未认证连接不能枚举控件、订阅事件或执行命令。

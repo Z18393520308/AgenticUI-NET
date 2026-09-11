@@ -23,6 +23,9 @@ Windows Forms 应用中的控件可以被稳定识别、观察、高亮、记录
 
 ## 安装
 
+开发分支新增[随应用启动的内嵌网关](docs/embedded-host.zh-CN.md)：通过 agenticui.json
+控制本机通信、WSS 和 UDP 发现，已移除独立 Gateway 程序。尚未包含在 0.6.1 中。
+
 WPF：
 
 ```powershell
@@ -55,7 +58,7 @@ dotnet add package AgenticUI.Remote --version 0.6.1
 - 本地 JSONL 审计日志，敏感文本默认脱敏且可配置
 - 用户操作录制和语义命令回放
 - 本机 Named Pipe 网关及可视化 WinForms / WPF Workbench 与 Remote Console
-- 独立、默认不启动的 WSS/TLS Gateway，安全转发到本机 Named Pipe
+- 应用内、默认关闭的 WSS/TLS Gateway，安全转发到本机 Named Pipe
 - 统一的 Pipe/WSS 客户端接口、WebSocket 客户端以及 Remote Console Gateway 联调入口
 - 默认关闭的 UDP 局域网发现广播（不承载认证和控制命令）
 - 原生外观，以及可选现代主题
@@ -66,7 +69,6 @@ dotnet add package AgenticUI.Remote --version 0.6.1
 src/
 ├── AgenticUI.Core       # 协议、注册表、事件总线、日志、录制与回放
 ├── AgenticUI.Remote     # 本机命名管道服务端与客户端
-├── AgenticUI.Gateway    # 独立 WSS/TLS 到 Named Pipe 转发进程（.NET 8）
 ├── AgenticUI.Wpf        # WPF 控件、附加属性和非激活引导窗口
 └── AgenticUI.WinForms   # WinForms 控件、Binder 和高亮层
 samples/
@@ -242,7 +244,7 @@ await client.ExecuteAsync(new AgenticCommand
 ## 跨机器安全访问
 
 不要让 WPF/WinForms 应用直接监听 TCP 或 UDP 控制端口。需要跨机器访问时，单独部署
-`AgenticUI.Gateway`：远程客户端通过 WSS/TLS 连接 Gateway，Gateway 再使用另一把令牌连接
+应用内网关：远程客户端通过 WSS/TLS 连接 Gateway，Gateway 再使用另一把令牌连接
 本机 Named Pipe。Gateway 默认只允许读取和高亮等低风险动作，写操作需要显式加入白名单。
 
 UDP 发现默认关闭；开启后只广播服务名和 WSS 地址，不包含令牌、管道名或控制命令。部署、
@@ -319,7 +321,7 @@ AgenticUI.NET 采用双许可证模式：
 [商业许可模板](COMMERCIAL-LICENSE-TEMPLATE.md) 与 [CLA 模板](CLA-TEMPLATE.md)，正式使用前必须
 填写许可方法定信息并经过法律审查。
 
-社区版现有能力和规划中的企业服务边界见 [EDITIONS.md](EDITIONS.md)。独立 Gateway 提供基础
+社区版现有能力和规划中的企业服务边界见 [EDITIONS.md](EDITIONS.md)。内嵌 Gateway 提供基础
 WSS 转发；企业身份、集中审计、设备管理和组织级策略仍属于后续服务方向。
 
 ## 参与项目

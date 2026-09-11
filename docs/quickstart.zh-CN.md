@@ -88,12 +88,13 @@ server.Start();
 var token = server.AuthenticationToken;
 ```
 
-稳定版 `0.6.1` 默认只使用本机 Named Pipe，不监听 TCP。可选的独立
-`AgenticUI.Gateway` 使用 WSS/TLS 转发到本机管道，桌面应用本身仍不监听网络端口。连接令牌
+当前源码使用应用内网关，按配置启用 WSS/TLS 并转发到本机管道；无需独立程序。
+该变更尚未包含在稳定版 0.6.1 中。连接令牌
 拥有本次会话的操作权限，不要写入源码、日志或版本控制。跨机器部署见
 [Gateway 安全部署指南](gateway.zh-CN.md)。
 
-本地调试可使用固定开发令牌；Remote Console 与 Workbench 已预填。通过 Gateway 连接示例：
+Workbench 当前默认使用随机本机令牌，请复制实际令牌到控制端。
+下方使用开发常量的连接示例仅用于手动配置的本机测试，必须与宿主环境变量中的令牌一致；生产连接请使用部署的 WSS 地址和独立网络令牌：
 
 ```csharp
 using AgenticUI;

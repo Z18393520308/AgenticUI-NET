@@ -46,7 +46,7 @@
 - 首版同时支持 `.NET 8` 和 `.NET Framework 4.8`。
 - 同时提供替换式 AgenticUI 控件和原生控件附加接入。
 - 桌面应用的默认远程控制只做本机 Named Pipe，不直接开放 TCP、局域网或互联网。
-- 跨机器控制只能通过独立 `AgenticUI.Gateway` 的 WSS/TLS 转发；公网令牌和 Pipe 令牌必须不同。
+- 跨机器控制只能通过应用内网关 的 WSS/TLS 转发；公网令牌和 Pipe 令牌必须不同。
 - UDP 只能作为默认关闭的局域网发现服务，不能承载认证、命令或事件。
 - 控制端可能是 AI Agent、调试控制台、企业服务端或另一客户端。
 - 默认记录语义事件；详细模式才记录按下、松开、焦点等底层事件。
@@ -81,7 +81,7 @@
 - WPF `AdornerLayer` 高亮。
 - WinForms 窗体前景、点击穿透高亮覆盖层。
 - 本机 Named Pipe 服务端和客户端。
-- 独立 `.NET 8` WSS/TLS Gateway，含双令牌、动作白名单、连接/速率/消息限制和审计。
+- 应用内 WSS/TLS Gateway，含双令牌、动作白名单、连接/速率/消息限制和审计。
 - `IAgenticRemoteClient` 统一传输接口和 `AgenticWebSocketClient` WSS 客户端。
 - 默认关闭、只发送公开服务元数据的 UDP 发现广播，以及按需监听、校验和去重的
   `AgenticGatewayDiscovery` 客户端。
@@ -234,7 +234,7 @@ docs/
   - 通过 `EventReceived` 暴露广播事件。
 
 默认管道名为 `AgenticUI.NET`。不要让 WPF/WinForms 宿主直接监听 TCP；跨机器访问只能走
-独立 Gateway 的 WSS/TLS 端点。不要为 UDP 添加认证或命令处理分支。
+应用内 Gateway 的 WSS/TLS 端点。不要为 UDP 添加认证或命令处理分支。
 
 ### 5.3 `AgenticUI.Wpf`
 

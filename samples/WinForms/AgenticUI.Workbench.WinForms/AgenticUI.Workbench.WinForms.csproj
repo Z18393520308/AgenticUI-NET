@@ -7,6 +7,7 @@
     <RootNamespace>AgenticUI.Workbench.WinForms</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
+    <None Update="agenticui.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <ProjectReference Include="..\..\..\src\AgenticUI.Core\AgenticUI.Core.csproj" />
     <ProjectReference Include="..\..\..\src\AgenticUI.Remote\AgenticUI.Remote.csproj" />
     <ProjectReference Include="..\..\..\src\AgenticUI.WinForms\AgenticUI.WinForms.csproj" />

@@ -6,6 +6,7 @@ internal static class Program
     private static void Main()
     {
         ApplicationConfiguration.Initialize();
+        using var host = AgenticUI.Remote.AgenticApplicationHost.StartFromConfiguration();
         Application.Run(new MainForm());
     }
 }

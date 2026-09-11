@@ -2,7 +2,6 @@ using System.Net;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using AgenticUI;
-using AgenticUI.Gateway;
 using AgenticUI.Remote;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -10,7 +9,6 @@ using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace AgenticUI.Gateway.Tests;
@@ -29,10 +27,7 @@ public sealed class WebSocketIntegrationTests
         var target = new Target(); registry.Register(target, "target");
         var pipeName = "aui-" + Guid.NewGuid().ToString("N");
         using var pipe = new AgenticNamedPipeServer(pipeName, registry, events: bus); pipe.Start();
-        var options = new GatewayOptions { PipeName = pipeName, LocalAuthenticationToken = pipe.AuthenticationToken,
-            AuthenticationToken = AgenticRemoteSecurity.CreateToken(), RequestsPerMinute = 10000 };
-        var handler = new GatewayConnectionHandler(options, new GatewayActionPolicy(options.AllowedActions),
-            NullLogger<GatewayConnectionHandler>.Instance);
+        var networkToken = AgenticRemoteSecurity.CreateToken();
         var builder = WebApplication.CreateBuilder();
         // 测试只监听自己的回环临时端口，不能继承 Gateway appsettings 中的生产端点。
         builder.Configuration.Sources.Clear();
@@ -43,7 +38,11 @@ public sealed class WebSocketIntegrationTests
         app.Map("/agenticui", async context =>
         {
             using var socket = await context.WebSockets.AcceptWebSocketAsync();
-            await handler.RunAsync(socket, "127.0.0.1", context.RequestAborted);
+                await EmbeddedGatewaySession.RunAsync(socket, new AgenticHostOptions
+                {
+                    Local = new() { PipeName = pipeName },
+                    Network = new() { RequestsPerMinute = 10000 }
+                }, pipe.AuthenticationToken, networkToken, context.RequestAborted);
         });
         await app.StartAsync();
         try
@@ -51,7 +50,7 @@ public sealed class WebSocketIntegrationTests
             var address = app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.Single();
             var uri = new Uri(address.Replace("https://", "wss://", StringComparison.Ordinal) + "/agenticui");
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(40));
-            using var client = await AgenticWebSocketClient.ConnectAsync(uri, options.AuthenticationToken,
+            using var client = await AgenticWebSocketClient.ConnectAsync(uri, networkToken,
                 skipTlsValidationForDevelopment: true, cancellationToken: timeout.Token);
             for (var index = 0; index < 2050; index++)
             {
@@ -63,6 +62,8 @@ public sealed class WebSocketIntegrationTests
             Assert.True(result.Result!.Succeeded, result.Result.Error);
             Assert.Equal("WSS 动态提示", target.LastGuidance!.Hint);
             Assert.False(string.IsNullOrEmpty(target.SessionId));
+            var denied = await client.ExecuteAsync(new AgenticCommand { ControlId = "target", Action = "setText" }, timeout.Token);
+            Assert.Equal(RemoteMessageTypes.Error, denied.Type);
             client.Dispose();
             Assert.Equal(target.SessionId, await target.Cleared.Task.WaitAsync(TimeSpan.FromSeconds(5)));
         }

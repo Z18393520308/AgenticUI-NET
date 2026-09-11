@@ -1,139 +1,66 @@
-using System.Net;
 using System.Text;
-using AgenticUI;
-using AgenticUI.Gateway;
 using AgenticUI.Remote;
-using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace AgenticUI.Gateway.Tests;
 
 public sealed class GatewaySecurityTests
 {
-    [Fact]
-    public void RequestWindowAllowsLongLivedConnectionsButRejectsRecentDuplicates()
+    [Theory]
+    [InlineData("http://localhost:7443")]
+    [InlineData("https://0.0.0.0:7443")]
+    public void InsecureListenAddressIsRejected(string address)
     {
-        var window = new RecentRequestIds(2048);
-        for (var index = 0; index < 10000; index++) Assert.True(window.TryAdd(index.ToString()));
-        Assert.False(window.TryAdd("9999"));
-        Assert.True(window.TryAdd("0")); // 已过期 ID 可再次使用，不承诺业务幂等。
-    }
-    [Fact]
-    public void OptionsRequireTwoLongDifferentTokens()
-    {
-        var options = ValidOptions();
-        options.LocalAuthenticationToken = options.AuthenticationToken;
-
-        var errors = GatewayOptionsValidator.Validate(options);
-
-        Assert.Contains(errors, error => error.Contains("must be different", StringComparison.Ordinal));
+        var options = new AgenticHostOptions();
+        options.Network.Enabled = true;
+        options.Network.ListenUrl = address;
+        Assert.Throws<InvalidDataException>(options.Validate);
     }
 
     [Fact]
-    public void DiscoveryRequiresWssWhenEnabled()
+    public void DiscoveryRequiresWss()
     {
-        var options = ValidOptions();
+        var options = new AgenticHostOptions();
+        options.Network.Enabled = true;
         options.Discovery.Enabled = true;
-        options.Discovery.PublicWebSocketUrl = "ws://192.168.1.10:7443/agenticui";
-
-        var errors = GatewayOptionsValidator.Validate(options);
-
-        Assert.Contains(errors, error => error.Contains("wss://", StringComparison.Ordinal));
+        options.Discovery.PublicWebSocketUrl = "ws://localhost:7443/agenticui";
+        Assert.Throws<InvalidDataException>(options.Validate);
     }
 
     [Fact]
-    public void DefaultPolicyAllowsReadAndGuidanceButRejectsMutation()
+    public void DefaultPolicyRejectsMutationAndWildcardIsInvalid()
     {
-        var policy = new GatewayActionPolicy(new GatewayOptions().AllowedActions);
-
-        Assert.True(policy.IsAllowed(AgenticActions.GetRows));
-        Assert.True(policy.IsAllowed(AgenticActions.HighlightCell));
-        Assert.False(policy.IsAllowed(AgenticActions.Click));
-        Assert.False(policy.IsAllowed(AgenticActions.DeleteRow));
-        Assert.False(policy.IsAllowed(AgenticActions.SetText));
+        var options = new AgenticHostOptions();
+        Assert.Contains("getRows", options.Network.AllowedActions);
+        Assert.Contains("highlightCell", options.Network.AllowedActions);
+        Assert.DoesNotContain("setText", options.Network.AllowedActions);
+        Assert.DoesNotContain("deleteRow", options.Network.AllowedActions);
+        options.Network.Enabled = true;
+        options.Network.AllowedActions = ["*"];
+        Assert.Throws<InvalidDataException>(options.Validate);
     }
 
     [Fact]
-    public void WildcardPolicyAllowsAllNonEmptyActions()
+    public void DiscoveryIsCompatibleAndContainsNoSecrets()
     {
-        var policy = new GatewayActionPolicy(["*"]);
-
-        Assert.True(policy.IsAllowed(AgenticActions.DeleteRow));
-        Assert.False(policy.IsAllowed(""));
-    }
-
-    [Fact]
-    public void AuthenticationComparisonUsesExactValue()
-    {
-        const string token = "0123456789abcdefghijklmnopqrstuvwxyz";
-
-        Assert.True(GatewaySecurity.FixedTimeEquals(token, token));
-        Assert.False(GatewaySecurity.FixedTimeEquals(token, token + "x"));
-        Assert.False(GatewaySecurity.FixedTimeEquals(token, null));
-    }
-
-    [Fact]
-    public void DiscoveryPayloadContainsNoTokensOrPipeName()
-    {
-        var options = ValidOptions();
-        options.Discovery.Enabled = true;
+        var options = new AgenticHostOptions();
+        options.Local.PipeName = "private-local-pipe";
         options.Discovery.PublicWebSocketUrl = "wss://gateway.example.test:7443/agenticui";
-        var broadcaster = new UdpDiscoveryBroadcaster(
-            options,
-            NullLogger<UdpDiscoveryBroadcaster>.Instance);
-
-        var json = Encoding.UTF8.GetString(broadcaster.CreatePayload());
-
-        Assert.Contains("AgenticUI.Discovery.v1", json, StringComparison.Ordinal);
-        Assert.Contains(options.Discovery.PublicWebSocketUrl, json, StringComparison.Ordinal);
-        Assert.DoesNotContain(options.AuthenticationToken, json, StringComparison.Ordinal);
-        Assert.DoesNotContain(options.LocalAuthenticationToken, json, StringComparison.Ordinal);
-        Assert.DoesNotContain(options.PipeName, json, StringComparison.Ordinal);
-        Assert.DoesNotContain("token", json, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("pipe", json, StringComparison.OrdinalIgnoreCase);
-    }
-
-    [Fact]
-    public void DiscoveryPayloadCanBeParsedByRemoteClient()
-    {
-        var options = ValidOptions();
-        options.Discovery.Enabled = true;
-        var broadcaster = new UdpDiscoveryBroadcaster(
-            options,
-            NullLogger<UdpDiscoveryBroadcaster>.Instance);
-
-        var payload = broadcaster.CreatePayload();
-
-        Assert.True(
-            AgenticGatewayDiscovery.TryParseAnnouncement(payload, out var announcement));
+        using var gateway = new EmbeddedGateway(options, "secret-local-token", "secret-network-token");
+        var bytes = gateway.CreateAnnouncement();
+        var json = Encoding.UTF8.GetString(bytes);
+        Assert.True(AgenticGatewayDiscovery.TryParseAnnouncement(bytes, out var announcement));
         Assert.Equal(options.Discovery.PublicWebSocketUrl, announcement.WebSocketUrl);
+        Assert.DoesNotContain("secret", json);
+        Assert.DoesNotContain(options.Local.PipeName, json);
     }
 
     [Fact]
-    public void DiscoveryDestinationsIncludeLoopbackForLocalScanning()
+    public void RequestsAreRateLimited()
     {
-        var destinations = UdpDiscoveryBroadcaster.GetDiscoveryDestinations(47731).ToList();
-
-        Assert.Contains(destinations, item => item.Address.Equals(IPAddress.Loopback));
-        Assert.Contains(destinations, item => item.Address.Equals(IPAddress.Broadcast));
+        var window = new EmbeddedGateway.RequestWindow(2);
+        Assert.True(window.TryAcquire());
+        Assert.True(window.TryAcquire());
+        Assert.False(window.TryAcquire());
     }
-
-    [Fact]
-    public void RateLimiterRejectsRequestsPastTheConfiguredWindowLimit()
-    {
-        var limiter = new FixedWindowRateLimiter(2);
-        var now = DateTimeOffset.UtcNow;
-
-        Assert.True(limiter.TryAcquire(now));
-        Assert.True(limiter.TryAcquire(now));
-        Assert.False(limiter.TryAcquire(now));
-        Assert.True(limiter.TryAcquire(now.AddMinutes(1)));
-    }
-
-    private static GatewayOptions ValidOptions() =>
-        new()
-        {
-            AuthenticationToken = "gateway-token-0123456789-abcdefghijk",
-            LocalAuthenticationToken = "local-pipe-token-0123456789-abcdefgh"
-        };
 }

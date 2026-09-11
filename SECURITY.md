@@ -6,7 +6,7 @@ AgenticUI.NET 的 WPF、WinForms 和 `AgenticUI.Remote` 默认只提供本机 Na
 不监听 TCP。远程服务默认要求随机令牌认证；`.NET 8` 还会把管道限制在当前操作系统用户。
 敏感控件值默认不写入日志或操作录制。
 
-可选的独立 `AgenticUI.Gateway` 只接受 WSS/TLS，并使用与本机 Pipe 不同的令牌。Gateway
+可选的应用内网关 只接受 WSS/TLS，并使用与本机 Pipe 不同的令牌。Gateway
 默认只允许读取和引导类动作，写操作需显式加入白名单；UDP 发现默认关闭且不接收认证或控制
 命令。部署者仍须配置可信证书、防火墙、秘密存储、业务授权和高风险操作二次确认。完整清单见
 [Gateway 安全部署指南](docs/gateway.zh-CN.md)。

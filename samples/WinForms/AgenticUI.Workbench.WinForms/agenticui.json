@@ -1,0 +1,8 @@
+{
+  "AgenticUI": {
+    "AutoStart": true,
+    "Local": { "Enabled": true, "PipeName": "AgenticUI.NET" },
+    "Network": { "Enabled": false },
+    "Discovery": { "Enabled": false }
+  }
+}

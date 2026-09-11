@@ -10,11 +10,10 @@ namespace AgenticUI.Workbench.Wpf;
 
 public partial class MainWindow : Window
 {
-    private const string PipeName = "AgenticUI.NET.Wpf";
     private static readonly Uri ModernThemeUri =
         new("pack://application:,,,/AgenticUI.Wpf;component/Themes/ModernTheme.xaml");
 
-    private readonly AgenticNamedPipeServer _server;
+    private readonly AgenticApplicationHost _host;
     private readonly AgenticLogRecorder _recorder;
     private readonly string _pipeStatusText;
     private readonly string _tokenStatusText;
@@ -49,15 +48,9 @@ public partial class MainWindow : Window
             "AgenticUI.NET",
             "workbench-wpf-events.jsonl");
         _recorder = new AgenticLogRecorder(logPath);
-        _server = new AgenticNamedPipeServer(
-            PipeName,
-            options: new AgenticNamedPipeServerOptions
-            {
-                AuthenticationToken = AgenticRemoteSecurity.ResolveDevelopmentPipeToken()
-            });
-        _server.Start();
-        _pipeStatusText = $"管道 {PipeName}";
-        _tokenStatusText = $"令牌 {_server.AuthenticationToken}";
+        _host = AgenticApplicationHost.Current ?? AgenticApplicationHost.StartFromConfiguration();
+        _pipeStatusText = _host.LastError ?? (_host.LocalRunning ? $"管道 {_host.PipeName}" : "通信已关闭");
+        _tokenStatusText = _host.LocalRunning ? $"令牌 {_host.LocalAuthenticationToken}" : "无本机令牌";
         PipeStatusText.Text = _pipeStatusText;
         TokenStatusText.Text = _tokenStatusText;
         _statusResetTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1600) };
@@ -73,10 +66,10 @@ public partial class MainWindow : Window
     }
 
     private void PipeStatusText_OnMouseLeftButtonUp(object sender, MouseButtonEventArgs e) =>
-        CopyStatusValue(PipeName, "已复制管道名");
+        CopyStatusValue(_host.PipeName, "已复制管道名");
 
     private void TokenStatusText_OnMouseLeftButtonUp(object sender, MouseButtonEventArgs e) =>
-        CopyStatusValue(_server.AuthenticationToken, "已复制令牌");
+        CopyStatusValue(_host.LocalAuthenticationToken, "已复制令牌");
 
     private void CopyStatusValue(string value, string hint)
     {
@@ -228,7 +221,6 @@ public partial class MainWindow : Window
     {
         _statusResetTimer.Stop();
         _recorder.Dispose();
-        _server.Dispose();
     }
 
     public sealed class DemoRow
