@@ -46,6 +46,7 @@ public static class AgenticActions
     public const string SetChecked = "setChecked";
     public const string GetChecked = "getChecked";
     public const string SelectItem = "selectItem";
+    public const string GetItems = "getItems";
     public const string SelectRow = "selectRow";
     public const string GetRow = "getRow";
     public const string GetRows = "getRows";

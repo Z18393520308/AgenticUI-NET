@@ -45,6 +45,20 @@ public static class AgenticProperties
         typeof(AgenticProperties),
         new PropertyMetadata(null));
 
+    /// <summary>复杂 ItemTemplate 的可选语义文字解析器；普通绑定自动复用 DisplayMemberPath。</summary>
+    public static readonly DependencyProperty ItemTextProviderProperty = DependencyProperty.RegisterAttached(
+        "ItemTextProvider", typeof(Func<object?, string?>), typeof(AgenticProperties), new PropertyMetadata(null));
+    /// <summary>可选的稳定业务键解析器；未配置时复用 SelectedValuePath。</summary>
+    public static readonly DependencyProperty ItemKeyProviderProperty = DependencyProperty.RegisterAttached(
+        "ItemKeyProvider", typeof(Func<object?, string?>), typeof(AgenticProperties), new PropertyMetadata(null));
+    public static Func<object?, string?>? GetItemTextProvider(DependencyObject target) =>
+        (Func<object?, string?>?)target.GetValue(ItemTextProviderProperty);
+    public static void SetItemTextProvider(DependencyObject target, Func<object?, string?>? value) =>
+        target.SetValue(ItemTextProviderProperty, value);
+    public static Func<object?, string?>? GetItemKeyProvider(DependencyObject target) =>
+        (Func<object?, string?>?)target.GetValue(ItemKeyProviderProperty);
+    public static void SetItemKeyProvider(DependencyObject target, Func<object?, string?>? value) =>
+        target.SetValue(ItemKeyProviderProperty, value);
     public static string? GetId(DependencyObject target) => (string?)target.GetValue(IdProperty);
     public static void SetId(DependencyObject target, string? value) => target.SetValue(IdProperty, value);
     public static bool GetEnabled(DependencyObject target) => (bool)target.GetValue(EnabledProperty);

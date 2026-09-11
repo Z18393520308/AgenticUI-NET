@@ -106,6 +106,8 @@ public sealed class AgenticInteractionRecorder : IDisposable
                 if (message.IsSensitive && !_options.RecordSensitiveText) return null;
                 if (!string.IsNullOrWhiteSpace(Value(message, "path")?.ToString()))
                     return Command(message.ControlId, AgenticActions.SelectItem, "path", Value(message, "path"));
+                if (Value(message, "itemKey") is not null)
+                    return Command(message.ControlId, AgenticActions.SelectItem, "itemKey", Value(message, "itemKey"));
                 if (!message.Data.ContainsKey("index")) return null;
                 return Command(
                     message.ControlId,

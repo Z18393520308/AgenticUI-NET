@@ -32,6 +32,8 @@ public sealed class GatewaySecurityTests
     {
         var options = new AgenticHostOptions();
         Assert.Contains("getRows", options.Network.AllowedActions);
+        Assert.Contains("getItems", options.Network.AllowedActions);
+        Assert.DoesNotContain("selectItem", options.Network.AllowedActions);
         Assert.Contains("highlightCell", options.Network.AllowedActions);
         Assert.DoesNotContain("setText", options.Network.AllowedActions);
         Assert.DoesNotContain("deleteRow", options.Network.AllowedActions);

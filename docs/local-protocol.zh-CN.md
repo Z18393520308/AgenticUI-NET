@@ -90,6 +90,7 @@
 {"controlId":"login.username","action":"getText","arguments":{}}
 {"controlId":"login.remember","action":"getChecked","arguments":{}}
 {"controlId":"login.role","action":"selectItem","arguments":{"index":1}}
+{"controlId":"login.role","action":"getItems","arguments":{"start":0,"count":50}}
 {"controlId":"demo.volume","action":"setValue","arguments":{"value":40}}
 {"controlId":"demo.date","action":"setValue","arguments":{"value":"2026-08-01"}}
 {"controlId":"demo.grid","action":"selectRow","arguments":{"row":0}}
@@ -171,6 +172,7 @@ WSS Gateway 默认动作白名单不包含这些低层动作。需要跨机器�
 - `setValue`
 - `getValue`
 - `selectItem`
+- `getItems`
 - `selectRow`
 - `getRow`
 - `getRows`
@@ -192,7 +194,20 @@ WSS Gateway 默认动作白名单不包含这些低层动作。需要跨机器�
 `click` 按控件类型解释：按钮触发点击；文本框聚焦；单选框选中；复选框切换；
 下拉列表打开选项。显式设置状态仍应优先使用 `setText` / `setChecked` / `setValue`。
 `selectItem` 接受从零开始的 `index`，或者与项目显示文本匹配的 `value`；树节点还支持
-`path`（用 `/` 分隔，如 `公司/研发`）。
+`path`（用 `/` 分隔，如 `公司/研发`）。支持 `items.v1` 的下拉框/普通列表框还提供 `getItems`、
+字符串业务键 `itemKey` 和可选的 `itemsVersion` 乐观校验，详见
+[下拉列表与选项协议](combobox.zh-CN.md)。新扩展在 Unreleased 源码中，稳定包 0.6.1 尚不包含。
+
+`getItems` 是只读动作，返回 `result.control.state.items`，以及 `start`、实际返回数量 `count`、
+当前已加载视图总数 `total`、不透明字符串 `itemsVersion`。每项含 `index`、`text`、`itemKey`、
+`isSelected`、`isEnabled`；`itemKey` 无绑定时为 null，`isEnabled` 无法确定时为 null。
+`start` 默认 0，`count` 默认 50、范围 1～500；超出末尾返回空页。后续分页也可以携带
+`itemsVersion` 防止混合不同版本。页面字段只出现在本次读取响应，不缓存进日常控件枚举。
+
+新版 `value` 先忽略大小写做完整显示文字匹配，再尝试去掉两端空白后的唯一匹配，最后兼容
+旧 `ToString()` 的完整匹配。不做包含匹配；任一阶段发现重名立即拒绝。`itemKey` 区分大小写，
+必须原样使用返回的字符串，不可与 `index`/`value` 混用。旧调用同时传 `index` 和 `value` 时仍
+优先 `index`，但错误索引不回退。变化后的列表拒绝携带旧版本的请求，不会自动换一个选项。
 
 ### 表格动作
 

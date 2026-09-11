@@ -57,6 +57,15 @@ public sealed class WebSocketIntegrationTests
                 var controls = await client.ListControlsAsync(false, timeout.Token);
                 Assert.Equal(RemoteMessageTypes.Controls, controls.Type);
             }
+            // 新的只读选项动作也通过原有 WSS → Pipe 链路，不能因加了读取而开放选择权限。
+            var items = await client.ExecuteAsync(new AgenticCommand
+            { ControlId = "target", Action = AgenticActions.GetItems }, timeout.Token);
+            Assert.True(items.Result!.Succeeded, items.Result.Error);
+            var itemState = System.Text.Json.JsonSerializer.SerializeToElement(items.Result.Control!.State, AgenticJson.Options);
+            Assert.Equal("BK-001", itemState.GetProperty("items")[0].GetProperty("itemKey").GetString());
+            var deniedSelection = await client.ExecuteAsync(new AgenticCommand
+            { ControlId = "target", Action = AgenticActions.SelectItem, Arguments = { ["itemKey"] = "BK-001" } }, timeout.Token);
+            Assert.Equal(RemoteMessageTypes.Error, deniedSelection.Type);
             var result = await client.ExecuteAsync(new AgenticCommand { ControlId = "target", Action = "highlight",
                 Arguments = { ["showBubble"] = true, ["hint"] = "WSS 动态提示", ["guidanceId"] = "step-2" } }, timeout.Token);
             Assert.True(result.Result!.Succeeded, result.Result.Error);
@@ -75,11 +84,18 @@ public sealed class WebSocketIntegrationTests
         public AgenticGuidanceOptions? LastGuidance { get; private set; }
         public string? SessionId { get; private set; }
         public TaskCompletionSource<string> Cleared { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public AgenticControlDescriptor Describe() => new() { Id = "target", Actions = new[] { "highlight" },
+        public AgenticControlDescriptor Describe() => new() { Id = "target", Actions = new[] { "highlight", "getItems", "selectItem" },
             Capabilities = new[] { AgenticGuidanceOptions.Capability } };
         public bool IsRemotelyDiscoverable() => true;
         public Task<AgenticCommandResult> ExecuteAsync(AgenticCommand command, CancellationToken cancellationToken = default)
         {
+            if (command.Action == AgenticActions.GetItems)
+            {
+                var items = new AgenticItemCollection();
+                items.Update(new[] { new AgenticItemEntry("book", "三体", "BK-001") });
+                var descriptor = Describe(); descriptor.State = items.ReadPage(command, -1);
+                return Task.FromResult(AgenticCommandResult.Success(command.RequestId, descriptor));
+            }
             SessionId = command.SessionId; LastGuidance = AgenticGuidanceOptions.FromCommand(command);
             return Task.FromResult(AgenticCommandResult.Success(command.RequestId, Describe()));
         }

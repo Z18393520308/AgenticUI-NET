@@ -219,6 +219,12 @@ await client.ExecuteAsync(new AgenticCommand
 也可以使用 `CloseDropDown` 关闭列表。对下拉列表执行 `Click` 的语义同样是打开列表。
 Workbench 和独立 Remote Console 都提供“选择下一项”按钮。
 
+当前 Unreleased 源码还补齐对象绑定选项：WPF 复用 `DisplayMemberPath` / `SelectedValuePath`，
+WinForms 复用 `GetItemText` / `ValueMember`。控制端可先通过 `GetItems` 分页读取真实候选项，
+再用 `SelectItem` 的 `itemKey` 选择，或携带 `itemsVersion` 校验索引是否过期；重名不猜测。
+已选文字、业务键和选择事件使用同一解析规则。详见
+[下拉列表使用指南](docs/combobox.zh-CN.md)（稳定包 0.6.1 尚不包含这些扩展）。
+
 DataGrid 可以分页读取当前视图、排序过滤并定位到具体单元格：
 
 ```csharp

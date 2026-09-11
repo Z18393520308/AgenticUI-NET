@@ -21,6 +21,8 @@ internal sealed class WinFormsControlAdapter : IAgenticControl, IAgenticGuidance
     private Dictionary<string, object?>? _lastCellState;
     private TreeNode? _lastExpansionNode;
     private string? _lastStatusText;
+    private readonly AgenticItemCollection _items = new();
+    private IReadOnlyDictionary<string, object?>? _itemResponse;
 
     public WinFormsControlAdapter(
         Control control,
@@ -149,6 +151,7 @@ internal sealed class WinFormsControlAdapter : IAgenticControl, IAgenticGuidance
             {
                 completion.SetResult(AgenticCommandResult.Failure(command.RequestId, exception.Message));
             }
+            finally { _itemResponse = null; }
         }
 
         if (_control.InvokeRequired)
@@ -177,7 +180,9 @@ internal sealed class WinFormsControlAdapter : IAgenticControl, IAgenticGuidance
             IsTemporaryId = id.StartsWith("temporary.", StringComparison.OrdinalIgnoreCase),
             IsSensitive = IsSensitive,
             IsEnabled = _control.Enabled,
-            Capabilities = new[] { AgenticGuidanceOptions.Capability },
+            Capabilities = _control is ComboBox or ListBox
+                ? new[] { AgenticGuidanceOptions.Capability, AgenticItemCollection.Capability }
+                : new[] { AgenticGuidanceOptions.Capability },
             Actions = GetActions(),
             State = GetState()
         };
@@ -281,18 +286,13 @@ internal sealed class WinFormsControlAdapter : IAgenticControl, IAgenticGuidance
                     break;
                 case AgenticActions.GetChecked when _control is RadioButton:
                     break;
-                case AgenticActions.SelectItem when _control is ComboBox comboBox:
-                    Select(comboBox.Items, index => comboBox.SelectedIndex = index, GetArgument(command, "index"), GetArgument(command, "value"));
+                case AgenticActions.GetItems when _control is ComboBox or ListBox:
+                    var itemControl = (ListControl)_control;
+                    _items.Update(WinFormsItemAccess.Capture(itemControl, Options));
+                    _itemResponse = _items.ReadPage(command, itemControl.SelectedIndex);
                     break;
-                case AgenticActions.SelectItem when _control is ListBox listBox and not CheckedListBox:
-                    Select(listBox.Items, index => listBox.SelectedIndex = index, GetArgument(command, "index"), GetArgument(command, "value"));
-                    break;
-                case AgenticActions.SelectItem when _control is CheckedListBox checkedListSelect:
-                    Select(
-                        checkedListSelect.Items,
-                        index => checkedListSelect.SelectedIndex = index,
-                        GetArgument(command, "index"),
-                        GetArgument(command, "value"));
+                case AgenticActions.SelectItem when _control is ComboBox or ListBox:
+                    SelectItem((ListControl)_control, command);
                     break;
                 case AgenticActions.SetChecked when _control is CheckedListBox checkedListBox:
                     SetCheckedListItem(
@@ -524,8 +524,8 @@ internal sealed class WinFormsControlAdapter : IAgenticControl, IAgenticGuidance
     {
         var (index, selection) = _control switch
         {
-            ComboBox comboBox => (comboBox.SelectedIndex, comboBox.SelectedItem?.ToString()),
-            ListBox listBox => (listBox.SelectedIndex, listBox.SelectedItem?.ToString()),
+            ComboBox comboBox => (comboBox.SelectedIndex, WinFormsItemAccess.Text(comboBox, comboBox.SelectedItem, Options)),
+            ListBox listBox => (listBox.SelectedIndex, WinFormsItemAccess.Text(listBox, listBox.SelectedItem, Options)),
             TabControl tabControl => (tabControl.SelectedIndex, tabControl.SelectedTab?.Text),
             ListView listView => (listView.SelectedIndices.Count > 0 ? listView.SelectedIndices[0] : -1, listView.SelectedItems.Count > 0 ? listView.SelectedItems[0].Text : null),
             _ => (-1, null)
@@ -535,7 +535,9 @@ internal sealed class WinFormsControlAdapter : IAgenticControl, IAgenticGuidance
             data: new Dictionary<string, object?>
             {
                 ["index"] = index,
-                ["selection"] = selection
+                ["selection"] = selection,
+                ["itemKey"] = _control is ListControl list && index >= 0
+                    ? WinFormsItemAccess.Key(list, WinFormsItemAccess.Items(list)[index], Options) : null
             });
     }
     private void OnValueChanged(object? sender, EventArgs args) =>
@@ -607,6 +609,7 @@ internal sealed class WinFormsControlAdapter : IAgenticControl, IAgenticGuidance
             AgenticActions.MouseDrag
         };
         if (_control is Button or CheckBox or RadioButton or TextBoxBase) actions.Add(AgenticActions.Click);
+        if (_control is ComboBox or ListBox) actions.Add(AgenticActions.GetItems);
         if (_control is TextBoxBase)
         {
             actions.Add(AgenticActions.SetText);
@@ -705,9 +708,10 @@ internal sealed class WinFormsControlAdapter : IAgenticControl, IAgenticGuidance
         }
         if (_control is ComboBox comboBox)
         {
-            state["text"] = comboBox.SelectedItem?.ToString() ?? comboBox.Text;
+            state["text"] = WinFormsItemAccess.Text(comboBox, comboBox.SelectedItem, Options) ?? comboBox.Text;
             state["selectedIndex"] = comboBox.SelectedIndex;
-            state["selection"] = comboBox.SelectedItem?.ToString();
+            state["selection"] = WinFormsItemAccess.Text(comboBox, comboBox.SelectedItem, Options);
+            state["itemKey"] = WinFormsItemAccess.Key(comboBox, comboBox.SelectedItem, Options);
             state["itemCount"] = comboBox.Items.Count;
             state["isDropDownOpen"] = comboBox.DroppedDown;
         }
@@ -775,9 +779,10 @@ internal sealed class WinFormsControlAdapter : IAgenticControl, IAgenticGuidance
         if (_control is ListBox listBox)
         {
             state["selectedIndex"] = listBox.SelectedIndex;
-            state["selection"] = listBox.SelectedItem?.ToString();
+            state["selection"] = WinFormsItemAccess.Text(listBox, listBox.SelectedItem, Options);
+            state["itemKey"] = WinFormsItemAccess.Key(listBox, listBox.SelectedItem, Options);
             state["itemCount"] = listBox.Items.Count;
-            state["text"] = listBox.SelectedItem?.ToString();
+            state["text"] = state["selection"];
         }
         if (_control is CheckedListBox checkedListBox)
         {
@@ -791,6 +796,8 @@ internal sealed class WinFormsControlAdapter : IAgenticControl, IAgenticGuidance
             state["itemCount"] = tabControl.TabPages.Count;
             state["text"] = tabControl.SelectedTab?.Text;
         }
+        if (_itemResponse is not null)
+            foreach (var pair in _itemResponse) state[pair.Key] = pair.Value;
         return state;
     }
 
@@ -864,32 +871,17 @@ internal sealed class WinFormsControlAdapter : IAgenticControl, IAgenticGuidance
         throw new ArgumentException("Action requires an 'index' argument.");
     }
 
-    private static void Select(IList items, Action<int> selectIndex, object? index, object? value)
+    private void SelectItem(ListControl control, AgenticCommand command)
     {
-        if (index is not null && int.TryParse(index.ToString(), out var parsedIndex))
-        {
-            selectIndex(parsedIndex);
-            return;
-        }
-
-        if (value is null)
-        {
-            throw new ArgumentException("selectItem requires an 'index' or 'value' argument.");
-        }
-
-        for (var itemIndex = 0; itemIndex < items.Count; itemIndex++)
-        {
-            if (string.Equals(
-                    items[itemIndex]?.ToString(),
-                    value.ToString(),
-                    StringComparison.OrdinalIgnoreCase))
-            {
-                selectIndex(itemIndex);
-                return;
-            }
-        }
-
-        throw new ArgumentOutOfRangeException(nameof(value), $"Item '{value}' was not found.");
+        _items.Update(WinFormsItemAccess.Capture(control, Options));
+        var index = _items.ResolveIndex(command);
+        var target = WinFormsItemAccess.Items(control)[index];
+        control.SelectedIndex = index;
+        if (control.SelectedIndex != index || index >= WinFormsItemAccess.Items(control).Count ||
+            !Equals(WinFormsItemAccess.Items(control)[index], target))
+            throw new InvalidOperationException("Selection changed during the operation. Read the current state before retrying.");
+        _items.Update(WinFormsItemAccess.Capture(control, Options));
+        _itemResponse = new Dictionary<string, object?> { ["itemsVersion"] = _items.Version };
     }
 
     private static void Select(TabControl.TabPageCollection pages, Action<int> selectIndex, object? index, object? value)

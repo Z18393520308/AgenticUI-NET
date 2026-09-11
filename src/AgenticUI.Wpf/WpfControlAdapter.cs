@@ -29,6 +29,8 @@ internal sealed class WpfControlAdapter : IAgenticControl, IAgenticGuidanceContr
     private TreeViewItem? _lastExpansionNode;
     private Predicate<object>? _originalGridFilter;
     private bool _hasAgenticGridFilter;
+    private readonly AgenticItemCollection _items = new();
+    private IReadOnlyDictionary<string, object?>? _itemResponse;
 
     public WpfControlAdapter(
         FrameworkElement element,
@@ -130,8 +132,12 @@ internal sealed class WpfControlAdapter : IAgenticControl, IAgenticGuidanceContr
             return await _element.Dispatcher.InvokeAsync(
                 () =>
                 {
-                    ExecuteOnUiThread(command);
-                    return AgenticCommandResult.Success(command.RequestId, DescribeOnUiThread());
+                    try
+                    {
+                        ExecuteOnUiThread(command);
+                        return AgenticCommandResult.Success(command.RequestId, DescribeOnUiThread());
+                    }
+                    finally { _itemResponse = null; }
                 },
                 System.Windows.Threading.DispatcherPriority.Normal,
                 cancellationToken);
@@ -153,7 +159,9 @@ internal sealed class WpfControlAdapter : IAgenticControl, IAgenticGuidanceContr
             IsTemporaryId = id.StartsWith("temporary.", StringComparison.OrdinalIgnoreCase),
             IsSensitive = AgenticProperties.GetSensitive(_element) || _element is PasswordBox,
             IsEnabled = _element.IsEnabled,
-            Capabilities = new[] { AgenticGuidanceOptions.Capability },
+            Capabilities = WpfItemAccess.Supports(_element)
+                ? new[] { AgenticGuidanceOptions.Capability, AgenticItemCollection.Capability }
+                : new[] { AgenticGuidanceOptions.Capability },
             Actions = GetActions(),
             State = GetState()
         };
@@ -252,6 +260,14 @@ internal sealed class WpfControlAdapter : IAgenticControl, IAgenticGuidanceContr
                     toggle.SetCurrentValue(ToggleButton.IsCheckedProperty, ReadBoolean(GetArgument(command, "checked")));
                     break;
                 case AgenticActions.GetChecked when _element is ToggleButton:
+                    break;
+                case AgenticActions.GetItems when WpfItemAccess.Supports(_element):
+                    var itemSelector = (Selector)_element;
+                    _items.Update(WpfItemAccess.Capture(itemSelector));
+                    _itemResponse = _items.ReadPage(command, itemSelector.SelectedIndex);
+                    break;
+                case AgenticActions.SelectItem when WpfItemAccess.Supports(_element):
+                    SelectItem((Selector)_element, command);
                     break;
                 case AgenticActions.SelectItem when _element is Selector selector:
                     Select(selector, GetArgument(command, "index"), GetArgument(command, "value"));
@@ -487,7 +503,9 @@ internal sealed class WpfControlAdapter : IAgenticControl, IAgenticGuidanceContr
             data: new Dictionary<string, object?>
             {
                 ["index"] = selector.SelectedIndex,
-                ["selection"] = selector is TabControl ? GetTabText(selector.SelectedItem) : selector.SelectedItem?.ToString() ?? selector.SelectedValue?.ToString()
+                ["selection"] = WpfItemAccess.Supports(selector) ? WpfItemAccess.Text(selector, selector.SelectedItem) :
+                    selector is TabControl ? GetTabText(selector.SelectedItem) : selector.SelectedItem?.ToString() ?? selector.SelectedValue?.ToString(),
+                ["itemKey"] = WpfItemAccess.Supports(selector) ? WpfItemAccess.Key(selector, selector.SelectedItem) : null
             });
     }
 
@@ -603,6 +621,7 @@ internal sealed class WpfControlAdapter : IAgenticControl, IAgenticGuidanceContr
         {
             actions.Add(AgenticActions.SelectItem);
         }
+        if (WpfItemAccess.Supports(_element)) actions.Add(AgenticActions.GetItems);
         if (_element is ListBox or TabControl)
         {
             actions.Add(AgenticActions.GetText);
@@ -672,12 +691,18 @@ internal sealed class WpfControlAdapter : IAgenticControl, IAgenticGuidanceContr
         if (_element is Selector selector)
         {
             state["selectedIndex"] = selector.SelectedIndex;
-            state["selection"] = selector is TabControl ? GetTabText(selector.SelectedItem) : selector.SelectedItem?.ToString() ?? selector.SelectedValue?.ToString();
+            state["selection"] = WpfItemAccess.Supports(selector) ? WpfItemAccess.Text(selector, selector.SelectedItem) :
+                selector is TabControl ? GetTabText(selector.SelectedItem) : selector.SelectedItem?.ToString() ?? selector.SelectedValue?.ToString();
             state["itemCount"] = selector.Items.Count;
+            if (WpfItemAccess.Supports(selector))
+            {
+                state["itemKey"] = WpfItemAccess.Key(selector, selector.SelectedItem);
+                state["text"] = state["selection"];
+            }
         }
         if (_element is ComboBox comboBox)
         {
-            state["text"] = comboBox.SelectedItem?.ToString() ?? comboBox.Text;
+            state["text"] = WpfItemAccess.Text(comboBox, comboBox.SelectedItem) ?? comboBox.Text;
             state["isDropDownOpen"] = comboBox.IsDropDownOpen;
         }
         if (_element is DatePicker datePicker)
@@ -720,8 +745,11 @@ internal sealed class WpfControlAdapter : IAgenticControl, IAgenticGuidanceContr
         }
         if (_lastCellState is not null)
             foreach (var pair in _lastCellState) state[pair.Key] = pair.Value;
-        if (_element is ListBox listBox) state["text"] = listBox.SelectedItem?.ToString();
+        if (_element is ListBox listBox) state["text"] = WpfItemAccess.Supports(listBox)
+            ? WpfItemAccess.Text(listBox, listBox.SelectedItem) : listBox.SelectedItem?.ToString();
         if (_element is TabControl tabControl) state["text"] = GetTabText(tabControl.SelectedItem);
+        if (_itemResponse is not null)
+            foreach (var pair in _itemResponse) state[pair.Key] = pair.Value;
         return state;
     }
 
@@ -770,6 +798,23 @@ internal sealed class WpfControlAdapter : IAgenticControl, IAgenticGuidanceContr
         }
 
         throw new ArgumentException($"'{value}' is not a valid Boolean value.");
+    }
+
+    private void SelectItem(Selector selector, AgenticCommand command)
+    {
+        _items.Update(WpfItemAccess.Capture(selector));
+        var index = _items.ResolveIndex(command);
+        var target = selector.Items[index];
+        // 保留原绑定及原生 SelectionChanged，不旁路写业务对象。
+        selector.SetCurrentValue(Selector.SelectedIndexProperty, index);
+        selector.GetBindingExpression(Selector.SelectedIndexProperty)?.UpdateSource();
+        selector.GetBindingExpression(Selector.SelectedItemProperty)?.UpdateSource();
+        selector.GetBindingExpression(Selector.SelectedValueProperty)?.UpdateSource();
+        if (Validation.GetHasError(selector)) throw new InvalidOperationException("选择未通过控件绑定校验。");
+        if (selector.SelectedIndex != index || !Equals(selector.SelectedItem, target))
+            throw new InvalidOperationException("Selection changed during the operation. Read the current state before retrying.");
+        _items.Update(WpfItemAccess.Capture(selector));
+        _itemResponse = new Dictionary<string, object?> { ["itemsVersion"] = _items.Version };
     }
 
     private static void Select(Selector selector, object? index, object? value)

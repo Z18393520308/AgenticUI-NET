@@ -91,7 +91,7 @@ public sealed class AgenticNetworkHostOptions
     public string WebSocketPath { get; set; } = "/agenticui";
     public string TokenEnvironmentVariable { get; set; } = "AGENTICUI_GATEWAY_TOKEN";
     public string[] AllowedActions { get; set; } = { "highlight", "clearHighlight", "focus", "getText", "getValue",
-        "getChecked", "getRow", "getRows", "getColumns", "getCell", "scrollToRow", "highlightCell", "selectCell" };
+        "getChecked", "getItems", "getRow", "getRows", "getColumns", "getCell", "scrollToRow", "highlightCell", "selectCell" };
     public string[] AllowedOrigins { get; set; } = Array.Empty<string>();
     public int MaxConnections { get; set; } = 32;
     public int RequestsPerMinute { get; set; } = 120;

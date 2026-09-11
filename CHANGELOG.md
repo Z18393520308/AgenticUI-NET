@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- 修复 WPF / WinForms 对象绑定下拉框按显示文字选择失败，以及状态和选择日志误返回对象 ToString 的问题。
+- 下拉框与普通 ListBox 新增 items.v1：getItems 分页候选读取、itemKey 业务键选择、itemsVersion
+  列表变化校验；复用既有显示/值绑定，复杂模板或自绘可选配置文字/键解析器。
+- 兼容旧 index/value；完整文字优先，再做唯一的首尾空白归一匹配，最后兼容旧 ToString；
+  重名、无效索引、禁用/未知可用状态和过期版本均拒绝，不做模糊自动选择。
+- 选项状态/事件携带 itemKey，录制优先保存业务键；候选返回不序列化业务对象，延续敏感状态脱敏。
+- 默认网络只读动作白名单加入 getItems，selectItem 仍需显式授权；增加共享协议、Windows UI、
+  Named Pipe 回归测试和下拉列表接入文档，未改控制端、版本号或发布状态。
+
 - 内嵌网关移除 HTTP.sys，改用用户态 TCP/SslStream 与自动持久化证书，不需要 netsh 或系统证书安装。
 - 新增首次指纹核验、一次性配对码、DPAPI 保护的本地凭据、重连与撤销配对；UDP 公告不作为身份信任来源。
 - 两个 Workbench/RemoteConsole 新增原生配对界面，WSS 不再自动跳过证书验证；配置预设不同端口。
