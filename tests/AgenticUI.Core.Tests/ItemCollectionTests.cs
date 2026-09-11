@@ -73,6 +73,25 @@ public sealed class ItemCollectionTests
     }
 
     [Fact]
+    public void ContainerAvailabilityDoesNotInvalidateDataVersionButIsAlwaysCheckedBeforeSelection()
+    {
+        var source = new object();
+        var items = Create(new AgenticItemEntry(source, "三体", "BK-001", null));
+        var version = items.Version;
+        var command = Command(("index", 0), ("itemsVersion", version));
+        Assert.Equal(0, items.LocateIndex(command));
+        Assert.Throws<InvalidOperationException>(() => items.ResolveIndex(command));
+        items.Update(new[] { new AgenticItemEntry(source, "三体", "BK-001", true) });
+        Assert.Equal(version, items.Version);
+        Assert.Equal(0, items.ResolveIndex(command));
+        items.Update(new[] { new AgenticItemEntry(source, "三体", "BK-001", false) });
+        Assert.Equal(version, items.Version);
+        Assert.Throws<InvalidOperationException>(() => items.ResolveIndex(command));
+        items.Update(new[] { new AgenticItemEntry(source, "changed-title", "BK-001", true) });
+        Assert.Throws<InvalidOperationException>(() => items.LocateIndex(command));
+    }
+
+    [Fact]
     public void PageIsBoundedAndNeverSerializesBusinessObjectsOrCompatibilityText()
     {
         var items = Create(Enumerable.Range(0, 600).Select(i =>

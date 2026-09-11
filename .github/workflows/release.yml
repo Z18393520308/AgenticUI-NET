@@ -47,6 +47,26 @@ jobs:
       - name: Pack
         run: dotnet pack AgenticUI.NET.sln --configuration Release --no-build --output artifacts/packages
 
+      - name: Setup Node.js for documentation checks
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Verify documentation and packaged examples
+        run: node scripts/verify-docs.mjs --build-examples --package-source artifacts/packages
+
+      - name: Prepare Chinese release notes
+        shell: pwsh
+        run: |
+          $version = (Select-Xml -Path Directory.Build.props -XPath '/Project/PropertyGroup/VersionPrefix').Node.InnerText
+          $changelog = Get-Content CHANGELOG.md -Raw -Encoding utf8
+          $pattern = '(?ms)^## ' + [regex]::Escape($version) + '(?:[^\S\r\n]+[^\r\n]*)?\r?\n(?<notes>.*?)(?=^## |\z)'
+          $section = [regex]::Match($changelog, $pattern)
+          if (-not $section.Success -or [string]::IsNullOrWhiteSpace($section.Groups['notes'].Value)) {
+            throw "CHANGELOG.md 缺少 $version 的中文发布说明"
+          }
+          $section.Groups['notes'].Value.Trim() | Set-Content artifacts/release-notes.md -Encoding utf8
+
       - name: NuGet login
         if: startsWith(github.ref, 'refs/tags/')
         uses: NuGet/login@v1
@@ -70,7 +90,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         shell: pwsh
-        run: gh release create "${{ github.ref_name }}" artifacts/packages/* --title "AgenticUI.NET ${{ github.ref_name }}" --generate-notes
+        run: gh release create "${{ github.ref_name }}" artifacts/packages/* --verify-tag --title "AgenticUI.NET ${{ github.ref_name }}" --notes-file artifacts/release-notes.md
 
       - name: Upload packages
         uses: actions/upload-artifact@v7

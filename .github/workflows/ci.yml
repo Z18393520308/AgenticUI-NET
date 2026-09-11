@@ -37,6 +37,14 @@ jobs:
       - name: Pack
         run: dotnet pack AgenticUI.NET.sln --configuration Release --no-build --output artifacts/packages
 
+      - name: Setup Node.js for documentation checks
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Verify documentation and packaged examples
+        run: node scripts/verify-docs.mjs --build-examples --package-source artifacts/packages
+
       - name: Upload packages
         uses: actions/upload-artifact@v7
         with:

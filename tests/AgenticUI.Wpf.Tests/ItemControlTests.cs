@@ -13,7 +13,7 @@ using Xunit;
 
 namespace AgenticUI.Wpf.Tests;
 
-public sealed class ItemControlTests
+public sealed partial class ItemControlTests
 {
     [Theory]
     [InlineData(false)]

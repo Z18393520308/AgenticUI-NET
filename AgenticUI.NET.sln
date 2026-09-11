@@ -37,10 +37,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{B22C0002
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "docs", "docs", "{C33C0003-3333-4333-8333-333333333333}"
 	ProjectSection(SolutionItems) = preProject
-		docs\architecture.zh-CN.md = docs\architecture.zh-CN.md
-		docs\local-protocol.zh-CN.md = docs\local-protocol.zh-CN.md
-		docs\gateway.zh-CN.md = docs\gateway.zh-CN.md
-		docs\AI-HANDOFF.zh-CN.md = docs\AI-HANDOFF.zh-CN.md
+		docs\quickstart.zh-CN.md = docs\quickstart.zh-CN.md
+		docs\development.zh-CN.md = docs\development.zh-CN.md
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{D44C0004-4444-4444-8444-444444444444}"

@@ -31,6 +31,7 @@ internal sealed class WpfControlAdapter : IAgenticControl, IAgenticGuidanceContr
     private bool _hasAgenticGridFilter;
     private readonly AgenticItemCollection _items = new();
     private IReadOnlyDictionary<string, object?>? _itemResponse;
+    private bool _itemSelectionPending;
 
     public WpfControlAdapter(
         FrameworkElement element,
@@ -129,22 +130,37 @@ internal sealed class WpfControlAdapter : IAgenticControl, IAgenticGuidanceContr
     {
         try
         {
-            return await _element.Dispatcher.InvokeAsync(
-                () =>
-                {
-                    try
-                    {
-                        ExecuteOnUiThread(command);
-                        return AgenticCommandResult.Success(command.RequestId, DescribeOnUiThread());
-                    }
-                    finally { _itemResponse = null; }
-                },
+            var operation = _element.Dispatcher.InvokeAsync(
+                () => ExecuteOnUiThreadAsync(command, cancellationToken),
                 System.Windows.Threading.DispatcherPriority.Normal,
                 cancellationToken);
+            return await (await operation).ConfigureAwait(false);
         }
         catch (Exception exception)
         {
             return AgenticCommandResult.Failure(command.RequestId, exception.Message);
+        }
+    }
+
+    private async Task<AgenticCommandResult> ExecuteOnUiThreadAsync(AgenticCommand command, CancellationToken token)
+    {
+        if (_itemSelectionPending && !AgenticActionPolicy.IsObservation(command.Action))
+            throw new InvalidOperationException("该控件正在准备选项，请等待本次选择结束后再执行修改动作。");
+        var selecting = command.Action == AgenticActions.SelectItem && WpfItemAccess.Supports(_element);
+        try
+        {
+            if (selecting)
+            {
+                _itemSelectionPending = true;
+                await PrepareAndSelectItemAsync((Selector)_element, command, token);
+            }
+            else ExecuteOnUiThread(command);
+            return AgenticCommandResult.Success(command.RequestId, DescribeOnUiThread());
+        }
+        finally
+        {
+            if (selecting) _itemSelectionPending = false;
+            _itemResponse = null;
         }
     }
 
@@ -170,6 +186,12 @@ internal sealed class WpfControlAdapter : IAgenticControl, IAgenticGuidanceContr
     private void ExecuteOnUiThread(AgenticCommand command)
     {
         if (command.Action == AgenticActions.ClearHighlight) { ClearHighlight(command); return; }
+        ValidateCommandTarget(command);
+        ExecuteActionOnUiThread(command);
+    }
+
+    private void ValidateCommandTarget(AgenticCommand command)
+    {
         if (!AgenticActionPolicy.IsObservation(command.Action))
         {
             if (!_element.IsEnabled || !WpfDisplayability.IsDisplayable(_element))
@@ -183,7 +205,10 @@ internal sealed class WpfControlAdapter : IAgenticControl, IAgenticGuidanceContr
             throw new InvalidOperationException(
                 "控件当前不可远程操作（被模态弹窗阻挡或不在活动窗口）。");
         }
+    }
 
+    private void ExecuteActionOnUiThread(AgenticCommand command)
+    {
         var previousSource = _activeSource;
         _activeSource = AgenticEventSource.Remote;
         try
@@ -798,6 +823,46 @@ internal sealed class WpfControlAdapter : IAgenticControl, IAgenticGuidanceContr
         }
 
         throw new ArgumentException($"'{value}' is not a valid Boolean value.");
+    }
+
+    private async Task PrepareAndSelectItemAsync(Selector selector, AgenticCommand command, CancellationToken token)
+    {
+        token.ThrowIfCancellationRequested();
+        ValidateCommandTarget(command);
+        _items.Update(WpfItemAccess.Capture(selector));
+        var index = _items.LocateIndex(command);
+        var version = _items.Version;
+        var registration = _registeredId;
+        var window = Window.GetWindow(selector);
+        void ValidatePreparedTarget()
+        {
+            ValidateCommandTarget(command);
+            if (!selector.IsLoaded || !_attached || _registeredId != registration || Window.GetWindow(selector) != window)
+                throw new InvalidOperationException("目标控件已卸载或重新注册，已停止本次选择。");
+            if (_items.Version != version)
+                throw new InvalidOperationException("Items changed during preparation. Read getItems again.");
+        }
+        void CommitPreparedSelection()
+        {
+            // 等待时只检查生命周期和集合通知，不每 30 ms 遍历整个绑定数据源。
+            // 提交前重新捕获，仍可发现未发集合通知的文字/键变化，且不接受等待期间的新目标。
+            _items.Update(WpfItemAccess.Capture(selector));
+            ValidatePreparedTarget();
+            if (_items.LocateIndex(command) != index)
+                throw new InvalidOperationException("Items changed during preparation. Read getItems again.");
+            token.ThrowIfCancellationRequested();
+            ExecuteOnUiThread(command);
+        }
+        void AsRemote(Action action)
+        {
+            var previousSource = _activeSource;
+            _activeSource = AgenticEventSource.Remote;
+            try { action(); }
+            finally { _activeSource = previousSource; }
+        }
+
+        await WpfItemRealization.WithContainerAsync(selector, index, ValidatePreparedTarget,
+            CommitPreparedSelection, AsRemote, token);
     }
 
     private void SelectItem(Selector selector, AgenticCommand command)

@@ -9,7 +9,7 @@ AgenticUI.NET 的 WPF、WinForms 和 `AgenticUI.Remote` 默认只提供本机 Na
 可选应用内网关只接受 WSS/TLS，自动生成用户级身份，首次配对必须独立核对证书指纹并使用目标端一次性码。配对凭据与 Pipe 令牌分离。Gateway
 默认只允许读取和引导类动作，写操作需显式加入白名单；UDP 发现默认关闭且不接收认证或控制
 命令。不再要求 HTTP.sys 或系统证书安装；部署者仍须配置防火墙、保护身份与配对记录、业务授权和高风险操作二次确认。完整清单见
-[Gateway 安全部署指南](docs/gateway.zh-CN.md)。
+[使用指南的网络接入](docs/quickstart.zh-CN.md#network)和[开发文档的安全边界](docs/development.zh-CN.md#hosting)。
 
 应用内鼠标动作不会移动系统指针，只向本进程中已注册、当前可展示的 WPF/WinForms 控件发送
 鼠标消息。坐标超出控件、目标被遮挡、控件禁用或不在当前模态交互窗口时会拒绝执行。由于鼠标
@@ -30,6 +30,7 @@ AgenticUI.NET 的 WPF、WinForms 和 `AgenticUI.Remote` 默认只提供本机 Na
 
 | 版本 | 安全更新 |
 | --- | --- |
+| 0.7.x | 支持，优先更新 |
 | 0.6.x | 支持 |
 | 0.5.x | 仅接受严重安全修复 |
 | 0.4.x | 仅接受严重安全修复 |
@@ -37,5 +38,5 @@ AgenticUI.NET 的 WPF、WinForms 和 `AgenticUI.Remote` 默认只提供本机 Na
 | 0.2.x | 仅接受严重安全修复 |
 | 0.1.x | 不再主动支持 |
 
-安全更新优先发布到最新的 `0.6.x`。生产项目应固定经过验证的补丁版本，并关注仓库的
+安全更新优先发布到最新的 `0.7.x`。生产项目应固定经过验证的补丁版本，并关注仓库的
 Security Advisories 和 Release Notes。

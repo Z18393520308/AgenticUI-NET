@@ -1,31 +1,19 @@
 # AgenticUI.NET
 
-AgenticUI.NET 为 WPF 与 Windows Forms 控件提供稳定语义 ID、事件广播、可视化引导、
-本地审计和经过令牌认证的本机语义命令。
+为 WPF / WinForms 的真实控件提供稳定 ID、状态发现、语义操作、动态引导和本地审计。
+控件不含 AI，人和外部控制端共用原界面与业务逻辑，支持 .NET 8 / .NET Framework 4.8。
 
-## 安装
+WPF 应用安装 AgenticUI.Wpf，WinForms 应用安装 AgenticUI.WinForms；需要进程外通信时添加
+同版本 AgenticUI.Remote，Core 会作为依赖引入。默认本机 Named Pipe，不自动开放网络。
 
-```powershell
-# WPF
-dotnet add package AgenticUI.Wpf --version 0.6.1
+文档只维护两个入口：
 
-# WinForms
-dotnet add package AgenticUI.WinForms --version 0.6.1
+- [使用指南：安装、完整示例、操作与排错](https://github.com/Z18393520308/AgenticUI-NET/blob/main/docs/quickstart.zh-CN.md)
+- [开发文档：架构、协议、测试与扩展](https://github.com/Z18393520308/AgenticUI-NET/blob/main/docs/development.zh-CN.md)
 
-# 可选：本机 Named Pipe 网关
-dotnet add package AgenticUI.Remote --version 0.6.1
-```
+main 文档会明确区分正式包与未发布源码能力；不能仅凭同名 API 出现在 main 就认为当前安装包支持。
+版本变化见 [CHANGELOG](https://github.com/Z18393520308/AgenticUI-NET/blob/main/CHANGELOG.md)。
+授权和安全边界见 [LICENSING](https://github.com/Z18393520308/AgenticUI-NET/blob/main/LICENSING.md)
+与 [SECURITY](https://github.com/Z18393520308/AgenticUI-NET/blob/main/SECURITY.md)。
 
-支持 .NET 8 和 .NET Framework 4.8。完整示例、快速开始、安全边界和授权说明请访问：
-
-`0.6.1` 修复 WPF 高亮布局循环，并增加高亮后的界面响应与命名管道读写回归测试。
-`0.6.0` 新增动态描边、编号和气泡引导，统一只读与树节点状态协议，
-并强化原生编辑校验、敏感数据脱敏、连接清理和长连接稳定性。
-
-- [GitHub 仓库](https://github.com/Z18393520308/AgenticUI-NET)
-- [快速开始](https://github.com/Z18393520308/AgenticUI-NET/blob/main/docs/quickstart.zh-CN.md)
-- [安全策略](https://github.com/Z18393520308/AgenticUI-NET/blob/main/SECURITY.md)
-- [开源与商业授权](https://github.com/Z18393520308/AgenticUI-NET/blob/main/LICENSING.md)
-
-本包依据 `AGPL-3.0-only` 提供。需要闭源集成且不采用 AGPL 路径时，请联系项目维护者讨论
-单独的商业许可证。
+本包按 AGPL-3.0-only 提供，另有独立商业许可路径，具体以授权文件和有效协议为准。

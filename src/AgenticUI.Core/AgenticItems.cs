@@ -45,7 +45,8 @@ public sealed class AgenticItemCollection
     private static bool Same(AgenticItemEntry a, AgenticItemEntry b) =>
         (ReferenceEquals(a.Source, b.Source) ||
          (a.Source is string || a.Source?.GetType().IsValueType == true) && Equals(a.Source, b.Source)) &&
-        a.Text == b.Text && a.ItemKey == b.ItemKey && a.IsEnabled == b.IsEnabled && a.LegacyText == b.LegacyText;
+        // 容器生成/回收会改变已知可用状态，但不改变数据身份。可用性必须在选择时实时核验。
+        a.Text == b.Text && a.ItemKey == b.ItemKey && a.LegacyText == b.LegacyText;
 
     public IReadOnlyDictionary<string, object?> ReadPage(AgenticCommand command, int selectedIndex)
     {
@@ -68,6 +69,19 @@ public sealed class AgenticItemCollection
     }
 
     public int ResolveIndex(AgenticCommand command)
+    {
+        var index = LocateIndex(command);
+        if (_items[index].IsEnabled == false) throw new InvalidOperationException("目标选项已禁用。");
+        if (_items[index].IsEnabled is null)
+            throw new InvalidOperationException("无法确认选项可用状态；目标选项容器尚未就绪。");
+        return index;
+    }
+
+    /// <summary>
+    /// 仅定位候选项，供 UI 适配器按需生成容器；不代表获得选择权限。
+    /// 完成容器准备后必须再次捕获状态，并使用 ResolveIndex 核验真实可用性。
+    /// </summary>
+    public int LocateIndex(AgenticCommand command)
     {
         ValidateVersion(command);
         var hasIndex = command.Arguments.ContainsKey("index");
@@ -104,9 +118,6 @@ public sealed class AgenticItemCollection
         else throw new ArgumentException("selectItem requires index, value, or itemKey.");
 
         if (index < 0) throw new ArgumentException("Item was not found. Use getItems to read the current options.");
-        if (_items[index].IsEnabled == false) throw new InvalidOperationException("目标选项已禁用。");
-        if (_items[index].IsEnabled is null)
-            throw new InvalidOperationException("无法确认选项可用状态；请先展开下拉框或使选项容器可见，再读取 getItems。");
         return index;
     }
 
