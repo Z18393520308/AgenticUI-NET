@@ -7,6 +7,7 @@
     <RootNamespace>AgenticUI.RemoteConsole.Wpf</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="..\..\Shared\PairingDialogs.Wpf.cs" Link="PairingDialogs.cs" />
     <ProjectReference Include="..\..\..\src\AgenticUI.Core\AgenticUI.Core.csproj" />
     <ProjectReference Include="..\..\..\src\AgenticUI.Remote\AgenticUI.Remote.csproj" />
   </ItemGroup>

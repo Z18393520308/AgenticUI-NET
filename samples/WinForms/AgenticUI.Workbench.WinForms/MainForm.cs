@@ -34,6 +34,17 @@ public partial class MainForm : Form
         _host = AgenticApplicationHost.Current ?? AgenticApplicationHost.StartFromConfiguration();
 
         BuildDemoLayout();
+        var pairingButton = new Button { Text = "网络身份 / 开启首次配对", AutoSize = true, Dock = DockStyle.Top };
+        pairingButton.Click += (_, _) => AgenticUI.Samples.PairingDialogs.ShowTarget(this, _host.Pairing);
+        Controls.Add(pairingButton);
+        pairingButton.SendToBack(); // 先为顶部按钮保留空间，避免覆盖 Dock=Fill 的业务面板。
+        var networkStatus = new ToolStripStatusLabel();
+        statusStrip.Items.Add(networkStatus);
+        var networkTimer = new System.Windows.Forms.Timer { Interval = 1000 };
+        networkTimer.Tick += (_, _) => networkStatus.Text =
+            $"网络：{(_host.NetworkRunning ? "已启动" : "未启动")} / 发现：{(_host.DiscoveryRunning ? "广播中" : "未广播")}";
+        FormClosed += (_, _) => networkTimer.Dispose();
+        networkTimer.Start();
         _pipeStatusText = _host.LastError ?? (_host.LocalRunning ? $"管道 {_host.PipeName}" : "通信已关闭");
         _tokenStatusText = _host.LocalRunning ? $"令牌 {_host.LocalAuthenticationToken}" : "无本机令牌";
         pipeStatusLabel.Text = _pipeStatusText;

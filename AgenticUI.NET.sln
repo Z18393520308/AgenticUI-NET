@@ -60,6 +60,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "workflows", "workflows", "{
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AgenticUI.Wpf.Tests", "tests\AgenticUI.Wpf.Tests\AgenticUI.Wpf.Tests.csproj", "{F718E5CD-1C70-4251-BBFD-5DD2F9A63892}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AgenticUI.Remote.Net48.Tests", "tests\AgenticUI.Remote.Net48.Tests\AgenticUI.Remote.Net48.Tests.csproj", "{F32E0FE0-8570-47B5-8C2C-67DA0128E376}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -214,6 +216,18 @@ Global
 		{F718E5CD-1C70-4251-BBFD-5DD2F9A63892}.Release|x64.Build.0 = Release|Any CPU
 		{F718E5CD-1C70-4251-BBFD-5DD2F9A63892}.Release|x86.ActiveCfg = Release|Any CPU
 		{F718E5CD-1C70-4251-BBFD-5DD2F9A63892}.Release|x86.Build.0 = Release|Any CPU
+		{F32E0FE0-8570-47B5-8C2C-67DA0128E376}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F32E0FE0-8570-47B5-8C2C-67DA0128E376}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F32E0FE0-8570-47B5-8C2C-67DA0128E376}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{F32E0FE0-8570-47B5-8C2C-67DA0128E376}.Debug|x64.Build.0 = Debug|Any CPU
+		{F32E0FE0-8570-47B5-8C2C-67DA0128E376}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{F32E0FE0-8570-47B5-8C2C-67DA0128E376}.Debug|x86.Build.0 = Debug|Any CPU
+		{F32E0FE0-8570-47B5-8C2C-67DA0128E376}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F32E0FE0-8570-47B5-8C2C-67DA0128E376}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F32E0FE0-8570-47B5-8C2C-67DA0128E376}.Release|x64.ActiveCfg = Release|Any CPU
+		{F32E0FE0-8570-47B5-8C2C-67DA0128E376}.Release|x64.Build.0 = Release|Any CPU
+		{F32E0FE0-8570-47B5-8C2C-67DA0128E376}.Release|x86.ActiveCfg = Release|Any CPU
+		{F32E0FE0-8570-47B5-8C2C-67DA0128E376}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -234,6 +248,7 @@ Global
 		{B7C8D9E0-F1A2-4345-9678-9ABCDEF01234} = {B22C0002-2222-4222-8222-222222222222}
 		{E55C0005-5555-4555-8555-555555555555} = {D44C0004-4444-4444-8444-444444444444}
 		{F718E5CD-1C70-4251-BBFD-5DD2F9A63892} = {B22C0002-2222-4222-8222-222222222222}
+		{F32E0FE0-8570-47B5-8C2C-67DA0128E376} = {B22C0002-2222-4222-8222-222222222222}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {F7A1B2C3-D4E5-6789-ABCD-EF0123456789}

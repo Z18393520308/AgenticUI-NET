@@ -38,6 +38,8 @@ public sealed class AgenticHostOptions
             throw new InvalidDataException("Local.PipeName 只能包含字母、数字、点、横线或下划线，长度不超过 100。");
         if (!Network.Enabled) return; // 关闭网络时绝不广播，发现配置不隐式开启监听。
         if (!Local.Enabled) throw new InvalidDataException("进程内网关要求 Local.Enabled=true。");
+        if (!System.Net.IPAddress.TryParse(Network.BindAddress, out _))
+            throw new InvalidDataException("Network.BindAddress 必须是本机 IP，0.0.0.0 表示监听所有 IPv4 网卡。");
         if (!Uri.TryCreate(Network.ListenUrl, UriKind.Absolute, out var uri) || uri.Scheme != "https" ||
             uri.AbsolutePath != "/" || uri.Query.Length > 0 || uri.Fragment.Length > 0 || uri.UserInfo.Length > 0 ||
             uri.Host == "0.0.0.0" || uri.Host == "::" || uri.Host.Contains('*') || uri.Host.Contains('+'))
@@ -60,9 +62,10 @@ public sealed class AgenticHostOptions
         if (!Discovery.Enabled) return;
         if (Discovery.Port < 1 || Discovery.Port > 65535 || Discovery.IntervalSeconds < 2 || Discovery.IntervalSeconds > 3600 ||
             string.IsNullOrWhiteSpace(Discovery.ServiceName) || Discovery.ServiceName.Length > 100 ||
-            !Uri.TryCreate(Discovery.PublicWebSocketUrl, UriKind.Absolute, out var publicUri) || publicUri.Scheme != "wss" ||
+            (!string.IsNullOrWhiteSpace(Discovery.PublicWebSocketUrl) &&
+            (!Uri.TryCreate(Discovery.PublicWebSocketUrl, UriKind.Absolute, out var publicUri) || publicUri.Scheme != "wss" ||
             publicUri.Query.Length > 0 || publicUri.Fragment.Length > 0 || publicUri.UserInfo.Length > 0 ||
-            publicUri.AbsolutePath != Network.WebSocketPath)
+            publicUri.AbsolutePath != Network.WebSocketPath)))
             throw new InvalidDataException("发现服务需要有效的端口、间隔、名称及不含凭据的 WSS 地址，路径须与监听路径一致。");
     }
 
@@ -79,6 +82,10 @@ public sealed class AgenticLocalHostOptions
 
 public sealed class AgenticNetworkHostOptions
 {
+    /// <summary>独立于公告主机名的绑定地址。跨机器访问需显式改为局域网 IP 或 0.0.0.0。</summary>
+    public string BindAddress { get; set; } = "127.0.0.1";
+    /// <summary>为空则放在当前用户 LocalApplicationData 下，按管道名隔离。</summary>
+    public string StateDirectory { get; set; } = "";
     public bool Enabled { get; set; }
     public string ListenUrl { get; set; } = "https://localhost:7443";
     public string WebSocketPath { get; set; } = "/agenticui";

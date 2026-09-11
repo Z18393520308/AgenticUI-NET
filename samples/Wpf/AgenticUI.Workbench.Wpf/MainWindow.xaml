@@ -21,9 +21,11 @@
                    ToolTip="点击复制令牌"
                    MouseLeftButtonUp="TokenStatusText_OnMouseLeftButtonUp" />
         <TextBlock x:Name="StatusHintText" Margin="12,0,0,0" />
+        <TextBlock x:Name="NetworkStatusText" Margin="12,0,0,0" />
       </StatusBar>
 
       <DockPanel Margin="20">
+        <Button DockPanel.Dock="Top" Content="网络身份 / 开启首次配对" HorizontalAlignment="Left" Margin="0,0,0,8" Click="Pairing_OnClick" />
         <StackPanel DockPanel.Dock="Top" Margin="0,0,0,12">
           <TextBlock x:Name="TitleText"
                      Text="AI 原生控件演示 (WPF)"

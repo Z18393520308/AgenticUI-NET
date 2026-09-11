@@ -12,6 +12,8 @@ public static class RemoteMessageTypes
     public const string Result = "result";
     public const string Event = "event";
     public const string Error = "error";
+    public const string Pair = "pair";
+    public const string Paired = "paired";
 }
 
 public sealed class RemoteRequest
@@ -31,6 +33,8 @@ public sealed class RemoteRequest
 
 public sealed class RemoteResponse
 {
+    /// <summary>仅在一次性配对成功的 TLS 响应中返回，不写日志、不广播。</summary>
+    public string? PairingToken { get; set; }
     public string? RequestId { get; set; }
     public string Type { get; set; } = "";
     public IReadOnlyList<AgenticControlDescriptor>? Controls { get; set; }

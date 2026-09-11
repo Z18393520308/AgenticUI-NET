@@ -12,6 +12,7 @@ public sealed class AgenticApplicationHost : IDisposable
     private static AgenticApplicationHost? _current;
     private AgenticNamedPipeServer? _pipe;
     private EmbeddedGateway? _gateway;
+    public AgenticPairingService? Pairing { get; private set; }
     private int _disposed;
 
     private AgenticApplicationHost() { }
@@ -43,7 +44,7 @@ public sealed class AgenticApplicationHost : IDisposable
             {
                 // 不拼接底层异常消息，避免证书路径、环境变量值或配置中的秘密进入日志。
                 host.LastError = "AgenticUI 启动失败（" + exception.GetType().Name +
-                    "）。请检查 agenticui.json、令牌环境变量、端口和 HTTP.sys 证书/URL 授权。";
+                    "）。请检查 agenticui.json、配置、端口、身份目录访问权限和可选令牌环境变量。";
                 Trace.TraceError(host.LastError);
             }
             return host;
@@ -61,12 +62,17 @@ public sealed class AgenticApplicationHost : IDisposable
         catch { pipe.Dispose(); throw; }
         if (!options.Network.Enabled) return;
         // 网络失败保留已经正常工作的本机管道，但绝不广播失败的网络服务。
-        var networkToken = ReadToken(options.Network.TokenEnvironmentVariable, required: true)!;
+        var networkToken = ReadToken(options.Network.TokenEnvironmentVariable, required: false) ?? "";
         if (AgenticRemoteSecurity.FixedTimeEquals(pipe.AuthenticationToken, networkToken))
             throw new InvalidDataException("网络与本机令牌必须独立。");
-        var gateway = new EmbeddedGateway(options, pipe.AuthenticationToken, networkToken);
+        var directory = options.Network.StateDirectory;
+        if (string.IsNullOrWhiteSpace(directory))
+            directory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "AgenticUI.NET", "identities", ProtectedLocalFile.Hash(System.Text.Encoding.UTF8.GetBytes(PipeName)));
+        Pairing = new AgenticPairingService(directory);
+        var gateway = new EmbeddedGateway(options, pipe.AuthenticationToken, networkToken, Pairing);
         try { gateway.Start(); _gateway = gateway; }
-        catch { gateway.Dispose(); throw; }
+        catch { gateway.Dispose(); Pairing.Dispose(); Pairing = null; throw; }
     }
 
     private static string? ReadToken(string name, bool required)
@@ -86,7 +92,7 @@ public sealed class AgenticApplicationHost : IDisposable
             AppDomain.CurrentDomain.ProcessExit -= OnProcessExit;
             AppDomain.CurrentDomain.DomainUnload -= OnProcessExit;
             // 不同步等待需要 UI Dispatcher 完成的会话清理，避免退出时与 UI 线程互锁。
-            try { _gateway?.Dispose(); }
+            try { _gateway?.Dispose(); Pairing?.Dispose(); }
             finally { _pipe?.Dispose(); if (ReferenceEquals(_current, this)) _current = null; }
         }
     }

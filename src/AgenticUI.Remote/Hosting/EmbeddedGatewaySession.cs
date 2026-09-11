@@ -9,7 +9,7 @@ namespace AgenticUI.Remote;
 internal static class EmbeddedGatewaySession
 {
     internal static async Task RunAsync(WebSocket socket, AgenticHostOptions options, string pipeToken,
-        string networkToken, CancellationToken stoppingToken)
+        string networkToken, CancellationToken stoppingToken, AgenticPairingService? pairing = null)
     {
         using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
         using var abort = lifetime.Token.Register(socket.Abort);
@@ -48,8 +48,18 @@ internal static class EmbeddedGatewaySession
             using var authentication = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
             authentication.CancelAfter(TimeSpan.FromSeconds(10));
             var request = await ReceiveAsync(socket, options.Network.MaximumMessageLength, authentication.Token).ConfigureAwait(false);
-            if (request is null || !ValidId(request.RequestId) || request.Type != RemoteMessageTypes.Authenticate ||
-                !AgenticRemoteSecurity.FixedTimeEquals(networkToken, request.AuthenticationToken)) return;
+            if (request is null || !ValidId(request.RequestId)) return;
+            if (request.Type == RemoteMessageTypes.Pair)
+            {
+                var issued = pairing?.Exchange(request.AuthenticationToken);
+                Enqueue(issued is null ? Error(request.RequestId, "配对码无效、已过期或配对窗口已关闭。")
+                    : new RemoteResponse { Type = RemoteMessageTypes.Paired, RequestId = request.RequestId, PairingToken = issued });
+                return;
+            }
+            var credential = request.AuthenticationToken;
+            bool Authorized() => (!string.IsNullOrEmpty(networkToken) && AgenticRemoteSecurity.FixedTimeEquals(networkToken, credential))
+                || pairing?.IsAuthorized(credential) == true;
+            if (request.Type != RemoteMessageTypes.Authenticate || !Authorized()) return;
             request.AuthenticationToken = null;
             local = await AgenticNamedPipeClient.ConnectAsync(pipeToken, options.Local.PipeName,
                 "AgenticUI.EmbeddedGateway", cancellationToken: authentication.Token).ConfigureAwait(false);
@@ -62,7 +72,7 @@ internal static class EmbeddedGatewaySession
             while (!lifetime.IsCancellationRequested && socket.State == WebSocketState.Open)
             {
                 request = await ReceiveAsync(socket, options.Network.MaximumMessageLength, lifetime.Token).ConfigureAwait(false);
-                if (request is null) break;
+                if (request is null || !Authorized()) break;
                 if (!rate.TryAcquire()) { Enqueue(Error(request.RequestId, "Request rate limit exceeded.")); break; }
                 if (!ValidId(request.RequestId) || !seen.Add(request.RequestId))
                 { Enqueue(Error(request.RequestId, "Invalid or duplicate request ID.")); continue; }

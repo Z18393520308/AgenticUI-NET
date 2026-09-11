@@ -1,5 +1,10 @@
 # AgenticUI.NET AI 开发交接文档
 
+> 开发分支网络接入已更新：用户态 TCP/TLS 取代 HTTP.sys，自动保存应用证书。
+> 默认通过独立核验指纹与一次性码配对，环境变量共享令牌仅保留为可选兼容入口。
+> 当前接入流程以 [内嵌网关与配对](embedded-host.zh-CN.md) 为准；net48 已增加专项测试项目，
+> macOS 编译通过不代表 Windows 运行验收通过。本变更尚未发布。
+
 > 本文档的目标读者是接手本仓库继续开发的 AI 编程代理。开始工作前请完整阅读本文，
 > 并先阅读最新的 `docs/PROJECT-MEMORY.zh-CN.md`，然后阅读 `README.md`、
 > `docs/architecture.zh-CN.md`、`docs/local-protocol.zh-CN.md`、

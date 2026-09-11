@@ -3,17 +3,21 @@ using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
 using System.Net.WebSockets;
+using System.Net.Security;
+using System.Security.Authentication;
 using System.Text.Json;
 
 namespace AgenticUI.Remote;
 
-/// <summary>Windows HTTP.sys 进程内监听；TLS 由系统证书绑定处理，不实现自定义 HTTP/TLS 协议。</summary>
+/// <summary>用户态 TCP/TLS 网关；不注册 HTTP.sys、不修改系统证书库。</summary>
 internal sealed class EmbeddedGateway : IDisposable
 {
     private readonly AgenticHostOptions _options;
     private readonly string _pipeToken;
     private readonly string _networkToken;
-    private readonly HttpListener _listener = new();
+    private TcpListener? _listener;
+    private readonly AgenticPairingService? _pairing;
+    private readonly ConcurrentDictionary<int, TcpClient> _clients = new();
     private readonly CancellationTokenSource _lifetime = new();
     private readonly ConcurrentDictionary<int, WebSocket> _sockets = new();
     private readonly Dictionary<string, RequestWindow> _attempts = new(StringComparer.Ordinal);
@@ -26,17 +30,20 @@ internal sealed class EmbeddedGateway : IDisposable
     private volatile bool _running;
     private volatile bool _discoveryRunning;
 
-    public EmbeddedGateway(AgenticHostOptions options, string pipeToken, string networkToken)
-    { _options = options; _pipeToken = pipeToken; _networkToken = networkToken; }
+    public EmbeddedGateway(AgenticHostOptions options, string pipeToken, string networkToken, AgenticPairingService? pairing = null)
+    { _options = options; _pipeToken = pipeToken; _networkToken = networkToken; _pairing = pairing; }
     public bool IsRunning => _running;
     public bool DiscoveryRunning => _discoveryRunning;
 
     public void Start()
     {
-        if (Environment.OSVersion.Platform != PlatformID.Win32NT)
-            throw new PlatformNotSupportedException("进程内 HTTPS 服务需要 Windows HTTP.sys。");
-        _listener.Prefixes.Add(_options.Network.ListenUrl.TrimEnd('/') + "/");
-        _listener.Start();
+        if (_pairing is null) throw new InvalidOperationException("缺少网关身份。");
+        var uri = new Uri(_options.Network.ListenUrl);
+        var address = IPAddress.Parse(_options.Network.BindAddress);
+        _listener = new TcpListener(address, uri.Port);
+        _listener.Server.ExclusiveAddressUse = true;
+        _listener.Start(_options.Network.MaxConnections);
+        _pairing.Revoked += AbortClients;
         _running = true;
         _ = Task.Run(AcceptAsync);
         if (_options.Discovery.Enabled)
@@ -52,27 +59,21 @@ internal sealed class EmbeddedGateway : IDisposable
         {
             while (!_lifetime.IsCancellationRequested)
             {
-                var context = await _listener.GetContextAsync().ConfigureAwait(false);
-                if (!context.Request.IsSecureConnection ||
-                    context.Request.Url?.AbsolutePath != _options.Network.WebSocketPath ||
-                    !context.Request.IsWebSocketRequest)
-                { Reject(context, 400); continue; }
-                // 有 Origin 的请求必须显式匹配；没有配置 Origin 时仅允许非浏览器客户端。
-                var origin = context.Request.Headers["Origin"];
-                if (origin is not null && !_options.Network.AllowedOrigins.Contains(origin, StringComparer.OrdinalIgnoreCase))
-                { Reject(context, 403); continue; }
-                var address = context.Request.RemoteEndPoint?.Address.ToString() ?? "unknown";
-                if (!AllowConnection(address)) { Reject(context, 429); continue; }
+                var client = await _listener!.AcceptTcpClientAsync().ConfigureAwait(false);
+                var address = (client.Client.RemoteEndPoint as IPEndPoint)?.Address.ToString() ?? "unknown";
+                if (!AllowConnection(address)) { client.Dispose(); continue; }
                 if (Interlocked.Increment(ref _connections) > _options.Network.MaxConnections)
-                { Interlocked.Decrement(ref _connections); Reject(context, 503); continue; }
-                _ = HandleAsync(context);
+                { Interlocked.Decrement(ref _connections); client.Dispose(); continue; }
+                var id = Interlocked.Increment(ref _nextId);
+                _clients[id] = client;
+                _ = HandleAsync(client, id);
             }
         }
-        catch (Exception exception) when (exception is HttpListenerException or ObjectDisposedException or InvalidOperationException)
+        catch (Exception exception) when (exception is SocketException or ObjectDisposedException or InvalidOperationException)
         {
-            if (!_lifetime.IsCancellationRequested) Trace.TraceError("AgenticUI 网络监听中断，请重启应用并检查 HTTP.sys 配置。");
+            if (!_lifetime.IsCancellationRequested) Trace.TraceError("AgenticUI 网络监听中断，请检查监听地址及端口。");
         }
-        finally { _running = false; _discoveryRunning = false; }
+        finally { _running = false; _discoveryRunning = false; AbortClients(); }
     }
 
     private bool AllowConnection(string address)
@@ -92,39 +93,55 @@ internal sealed class EmbeddedGateway : IDisposable
         }
     }
 
-    private async Task HandleAsync(HttpListenerContext context)
+    private async Task HandleAsync(TcpClient client, int id)
     {
-        var id = Interlocked.Increment(ref _nextId);
         WebSocket? socket = null;
         try
         {
-            var accepted = await context.AcceptWebSocketAsync(null).ConfigureAwait(false);
-            socket = accepted.WebSocket;
+            client.NoDelay = true;
+            using var connection = client;
+            using var stream = new SslStream(client.GetStream(), false);
+            using var stopRegistration = _lifetime.Token.Register(client.Close);
+            using (var handshake = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token))
+            {
+                handshake.CancelAfter(TimeSpan.FromSeconds(10));
+                using var abortHandshake = handshake.Token.Register(client.Close);
+                await stream.AuthenticateAsServerAsync(_pairing!.Certificate, false, SslProtocols.Tls12, false).ConfigureAwait(false);
+                socket = await TlsWebSocketTransport.AcceptAsync(stream, _options.Network.WebSocketPath,
+                    _options.Network.AllowedOrigins, handshake.Token).ConfigureAwait(false);
+            }
             _sockets[id] = socket;
             using var registration = _lifetime.Token.Register(socket.Abort);
-            await EmbeddedGatewaySession.RunAsync(socket, _options, _pipeToken, _networkToken, _lifetime.Token).ConfigureAwait(false);
+            await EmbeddedGatewaySession.RunAsync(socket, _options, _pipeToken, _networkToken, _lifetime.Token, _pairing).ConfigureAwait(false);
         }
-        catch (Exception exception) when (exception is HttpListenerException or WebSocketException or IOException or
-            OperationCanceledException or ObjectDisposedException or InvalidOperationException)
+        catch (Exception exception) when (exception is SocketException or AuthenticationException or WebSocketException or IOException or
+            OperationCanceledException or ObjectDisposedException or InvalidOperationException or FormatException or
+            System.Security.Cryptography.CryptographicException or ArgumentException)
         { if (!_lifetime.IsCancellationRequested) Trace.TraceWarning("AgenticUI 网络会话结束；未记录请求参数或令牌。"); }
         finally
         {
             _sockets.TryRemove(id, out _);
             socket?.Dispose();
-            try { context.Response.Close(); }
-            catch (Exception exception) when (exception is ObjectDisposedException or HttpListenerException) { }
+            _clients.TryRemove(id, out _);
+            client.Dispose();
             Interlocked.Decrement(ref _connections);
         }
     }
 
-    private static void Reject(HttpListenerContext context, int status)
-    { context.Response.StatusCode = status; context.Response.Close(); }
+    private void AbortClients()
+    {
+        foreach (var client in _clients.Values) client.Close();
+        foreach (var socket in _sockets.Values) socket.Abort();
+    }
 
     internal byte[] CreateAnnouncement() => JsonSerializer.SerializeToUtf8Bytes(new AgenticGatewayDiscoveryAnnouncement
     {
         InstanceId = _instanceId,
         ServiceName = _options.Discovery.ServiceName,
-        WebSocketUrl = _options.Discovery.PublicWebSocketUrl,
+        WebSocketUrl = string.IsNullOrWhiteSpace(_options.Discovery.PublicWebSocketUrl)
+            ? new UriBuilder(_options.Network.ListenUrl) { Scheme = "wss", Path = _options.Network.WebSocketPath }.Uri.AbsoluteUri
+            : _options.Discovery.PublicWebSocketUrl,
+        CertificateFingerprint = _pairing?.CertificateFingerprint ?? "",
         Version = typeof(AgenticApplicationHost).Assembly.GetName().Version?.ToString() ?? "unknown",
         Timestamp = DateTimeOffset.UtcNow
     }, AgenticJson.Options);
@@ -153,9 +170,10 @@ internal sealed class EmbeddedGateway : IDisposable
         _running = false;
         _discoveryRunning = false;
         _lifetime.Cancel();
-        _listener.Close();
+        _listener?.Stop();
+        if (_pairing is not null) _pairing.Revoked -= AbortClients;
         _udp?.Dispose();
-        foreach (var socket in _sockets.Values) socket.Abort();
+        AbortClients();
         // 后台会话仍持有取消令牌；不在 UI 退出回调中同步等待或提前释放 CTS。
     }
 

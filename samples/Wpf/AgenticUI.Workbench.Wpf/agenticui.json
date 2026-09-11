@@ -2,7 +2,7 @@
   "AgenticUI": {
     "AutoStart": true,
     "Local": { "Enabled": true, "PipeName": "AgenticUI.NET.Wpf" },
-    "Network": { "Enabled": false },
-    "Discovery": { "Enabled": false }
+    "Network": { "Enabled": false, "BindAddress": "127.0.0.1", "ListenUrl": "https://localhost:7444" },
+    "Discovery": { "Enabled": false, "ServiceName": "AgenticUI Wpf Demo" }
   }
 }

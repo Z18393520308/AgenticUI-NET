@@ -9,6 +9,19 @@ namespace AgenticUI.RemoteConsole.Wpf;
 
 public partial class MainWindow : Window
 {
+    private void ForgetPairing_OnClick(object sender, RoutedEventArgs e)
+    {
+        if (TransportCombo.SelectedIndex != 1) return;
+        if (MessageBox.Show(this, "仅删除当前地址的本地配对记录。目标端授权仍需在目标软件撤销。确认继续？",
+            "忘记配对", MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
+        try
+        {
+            _client?.Dispose();
+            new AgenticPairingStore().Forget(new Uri(PipeNameBox.Text));
+            StatusText.Text = "已忘记配对，下次连接必须重新核验身份。";
+        }
+        catch (Exception exception) { StatusText.Text = exception.Message; }
+    }
     private readonly ObservableCollection<ControlRow> _controls = new();
     private IAgenticRemoteClient? _client;
 
@@ -36,8 +49,9 @@ public partial class MainWindow : Window
             ? AgenticRemoteSecurity.DevelopmentGatewayWebSocketUrl
             : "AgenticUI.NET.Wpf";
 
+        TokenBox.IsEnabled = !useGateway;
         TokenBox.Text = useGateway
-            ? AgenticRemoteSecurity.DevelopmentGatewayToken
+            ? ""
             : AgenticRemoteSecurity.DevelopmentPipeToken;
     }
 
@@ -70,7 +84,7 @@ public partial class MainWindow : Window
             }
             else
             {
-                StatusText.Text = "未发现 Gateway（请确认 Gateway 已启动；本机联调需重启 Gateway 以加载 Discovery 配置）";
+                StatusText.Text = "未发现软件：请检查目标应用 Network/Discovery 开关、绑定地址和防火墙，修改配置后重启目标应用";
                 StatusText.Foreground = Brushes.DarkOrange;
             }
         }
@@ -93,11 +107,6 @@ public partial class MainWindow : Window
         }
     }
 
-    private static bool IsLocalDevelopmentGateway(string endpoint) =>
-        Uri.TryCreate(endpoint, UriKind.Absolute, out var uri) &&
-        uri.Scheme == "wss" &&
-        uri.Host is "localhost" or "127.0.0.1" or "::1";
-
     private async void Connect_OnClick(object sender, RoutedEventArgs e)
     {
         if (sender is Button connectButton)
@@ -109,11 +118,8 @@ public partial class MainWindow : Window
         {
             _client?.Dispose();
             _client = TransportCombo.SelectedIndex == 1
-                ? await AgenticWebSocketClient.ConnectAsync(
-                    new Uri(PipeNameBox.Text),
-                    TokenBox.Text,
-                    "AgenticUI Remote Console (WPF)",
-                    skipTlsValidationForDevelopment: IsLocalDevelopmentGateway(PipeNameBox.Text))
+                ? await AgenticWebSocketClient.ConnectPairedAsync(new Uri(PipeNameBox.Text),
+                    prompt => Dispatcher.InvokeAsync(() => AgenticUI.Samples.PairingDialogs.Confirm(this, prompt)).Task)
                 : await AgenticNamedPipeClient.ConnectAsync(
                     TokenBox.Text,
                     PipeNameBox.Text,
@@ -128,7 +134,7 @@ public partial class MainWindow : Window
         {
             StatusText.Text = TransportCombo.SelectedIndex == 1 &&
                               exception.Message.Contains("Unable to connect", StringComparison.OrdinalIgnoreCase)
-                ? "连接失败：无法连接 Gateway，请先启动 AgenticUI.Gateway（7443 端口）"
+                ? "连接失败：请检查目标软件的网络状态、地址及防火墙"
                 : $"连接失败：{exception.Message}";
             StatusText.Foreground = Brushes.Firebrick;
         }

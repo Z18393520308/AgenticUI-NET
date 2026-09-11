@@ -71,13 +71,22 @@ public sealed class ApplicationHostTests
     }
 
     [Fact]
-    public void MissingNetworkTokenKeepsLocalAvailable()
+    public void OccupiedNetworkPortKeepsLocalAvailable()
     {
         var options = Options(); options.Network.Enabled = true;
         options.Network.TokenEnvironmentVariable = "AUI_TEST_" + Guid.NewGuid().ToString("N");
-        using var host = AgenticApplicationHost.Start(options);
-        Assert.True(host.LocalRunning); Assert.False(host.NetworkRunning);
-        Assert.False(host.DiscoveryRunning); Assert.NotNull(host.LastError);
+        var directory = Path.Combine(Path.GetTempPath(), "aui-test-" + Guid.NewGuid().ToString("N"));
+        options.Network.StateDirectory = directory;
+        using var occupied = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
+        occupied.Start();
+        options.Network.ListenUrl = "https://localhost:" + ((System.Net.IPEndPoint)occupied.LocalEndpoint).Port;
+        try
+        {
+            using var host = AgenticApplicationHost.Start(options);
+            Assert.True(host.LocalRunning); Assert.False(host.NetworkRunning);
+            Assert.False(host.DiscoveryRunning); Assert.NotNull(host.LastError);
+        }
+        finally { if (Directory.Exists(directory)) Directory.Delete(directory, true); }
     }
 
     [Fact]

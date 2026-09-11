@@ -18,6 +18,8 @@ public sealed class AgenticGatewayDiscoveryAnnouncement
     public string WebSocketUrl { get; set; } = "";
 
     public string Version { get; set; } = "";
+    /// <summary>仅供提示；UDP 不可信，必须另行核对 TLS 实际证书与目标端显示。</summary>
+    public string CertificateFingerprint { get; set; } = "";
 
     public DateTimeOffset Timestamp { get; set; }
 

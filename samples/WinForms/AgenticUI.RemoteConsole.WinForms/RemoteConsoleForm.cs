@@ -79,6 +79,21 @@ public partial class RemoteConsoleForm : Form
         connectionPanel.Controls.Add(_transportCombo);
         connectionPanel.Controls.Add(_discoverButton);
         connectionPanel.Controls.Add(_discoveryCombo);
+        var forget = new Button { Text = "忘记当前配对", AutoSize = true };
+        forget.Click += (_, _) =>
+        {
+            if (_transportCombo.SelectedIndex != 1 ||
+                MessageBox.Show(this, "仅删除当前地址的本地配对记录。目标端授权仍需在目标软件撤销。确认继续？",
+                    "忘记配对", MessageBoxButtons.YesNo) != DialogResult.Yes) return;
+            try
+            {
+                _client?.Dispose();
+                new AgenticPairingStore().Forget(new Uri(pipeNameBox.Text));
+                statusLabel.Text = "已忘记配对，下次连接必须重新核验身份。";
+            }
+            catch (Exception exception) { statusLabel.Text = exception.Message; }
+        };
+        connectionPanel.Controls.Add(forget);
         connectionPanel.Controls.SetChildIndex(_transportCombo, 0);
         connectionPanel.Controls.SetChildIndex(_discoverButton, 1);
         connectionPanel.Controls.SetChildIndex(_discoveryCombo, 2);
@@ -95,8 +110,9 @@ public partial class RemoteConsoleForm : Form
             ? AgenticRemoteSecurity.DevelopmentGatewayWebSocketUrl
             : "AgenticUI.NET";
 
+        tokenBox.Enabled = !useGateway;
         tokenBox.Text = useGateway
-            ? AgenticRemoteSecurity.DevelopmentGatewayToken
+            ? ""
             : AgenticRemoteSecurity.DevelopmentPipeToken;
     }
 
@@ -126,7 +142,7 @@ public partial class RemoteConsoleForm : Form
             }
             else
             {
-                statusLabel.Text = "未发现 Gateway（请确认 Gateway 已启动；本机联调需重启 Gateway 以加载 Discovery 配置）";
+                statusLabel.Text = "未发现软件：请检查目标应用 Network/Discovery 开关、绑定地址和防火墙，修改配置后重启目标应用";
                 statusLabel.ForeColor = Color.DarkOrange;
             }
         }
@@ -147,11 +163,6 @@ public partial class RemoteConsoleForm : Form
 
         public override string ToString() => entry.DisplayText;
     }
-
-    private static bool IsLocalDevelopmentGateway(string endpoint) =>
-        Uri.TryCreate(endpoint, UriKind.Absolute, out var uri) &&
-        uri.Scheme == "wss" &&
-        uri.Host is "localhost" or "127.0.0.1" or "::1";
 
     private void AddExtendedDemoActions()
     {
@@ -236,11 +247,7 @@ public partial class RemoteConsoleForm : Form
         {
             _client?.Dispose();
             _client = _transportCombo.SelectedIndex == 1
-                ? await AgenticWebSocketClient.ConnectAsync(
-                    new Uri(pipeNameBox.Text),
-                    tokenBox.Text,
-                    "AgenticUI Remote Console",
-                    skipTlsValidationForDevelopment: IsLocalDevelopmentGateway(pipeNameBox.Text))
+                ? await AgenticWebSocketClient.ConnectPairedAsync(new Uri(pipeNameBox.Text), ConfirmPairingAsync)
                 : await AgenticNamedPipeClient.ConnectAsync(
                     tokenBox.Text,
                     pipeNameBox.Text,
@@ -255,7 +262,7 @@ public partial class RemoteConsoleForm : Form
         {
             statusLabel.Text = _transportCombo.SelectedIndex == 1 &&
                                exception.Message.Contains("Unable to connect", StringComparison.OrdinalIgnoreCase)
-                ? "连接失败：无法连接 Gateway，请先启动 AgenticUI.Gateway（7443 端口）"
+                ? "连接失败：请检查目标软件的网络状态、地址及防火墙"
                 : $"连接失败：{exception.Message}";
             statusLabel.ForeColor = Color.Firebrick;
         }
@@ -263,6 +270,17 @@ public partial class RemoteConsoleForm : Form
         {
             connectButton.Enabled = true;
         }
+    }
+
+    private Task<string?> ConfirmPairingAsync(AgenticPairingPrompt prompt)
+    {
+        var completion = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        BeginInvoke(new Action(() =>
+        {
+            try { completion.SetResult(AgenticUI.Samples.PairingDialogs.Confirm(this, prompt)); }
+            catch (Exception exception) { completion.SetException(exception); }
+        }));
+        return completion.Task;
     }
 
     private async void Refresh_Click(object? sender, EventArgs e) =>

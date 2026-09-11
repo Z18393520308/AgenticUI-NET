@@ -24,7 +24,7 @@ Windows Forms 应用中的控件可以被稳定识别、观察、高亮、记录
 ## 安装
 
 开发分支新增[随应用启动的内嵌网关](docs/embedded-host.zh-CN.md)：通过 agenticui.json
-控制本机通信、WSS 和 UDP 发现，已移除独立 Gateway 程序。尚未包含在 0.6.1 中。
+控制本机通信、WSS 和 UDP 发现，已移除独立 Gateway 程序及 HTTP.sys 依赖。自动生成证书，首次核验指纹并输入一次性码后保存配对；不需要手动安装证书或监听授权。尚未包含在 0.6.1 中。
 
 WPF：
 

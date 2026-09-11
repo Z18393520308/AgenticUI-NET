@@ -41,6 +41,7 @@
                Text="agenticui-dev-pipe-token-0123456789abcdef"
                Margin="0,0,10,0" />
       <Button Content="连接" Padding="14,4" Margin="0,0,10,0" Click="Connect_OnClick" />
+      <Button Content="忘记当前配对" Padding="10,4" Margin="0,0,10,0" Click="ForgetPairing_OnClick" />
       <TextBlock x:Name="StatusText" Text="未连接" VerticalAlignment="Center" />
     </WrapPanel>
 

@@ -4,10 +4,15 @@
     <RootNamespace>AgenticUI.Remote</RootNamespace>
     <PackageId>AgenticUI.Remote</PackageId>
     <IsPackable>true</IsPackable>
-    <Description>Named Pipe and secure WebSocket clients, local server, and Gateway discovery for AgenticUI.NET.</Description>
+    <Description>Named Pipe, embedded TLS gateway, certificate-pinned pairing, and discovery for AgenticUI.NET.</Description>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\AgenticUI.Core\AgenticUI.Core.csproj" />
     <PackageReference Include="System.Text.Json" Version="8.0.5" />
+    <PackageReference Include="Ninja.WebSockets" Version="1.1.8" Condition="'$(TargetFramework)' == 'net48'" />
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" Condition="'$(TargetFramework)' == 'net8.0'" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(TargetFramework)' == 'net48'">
+    <Reference Include="System.Security" />
   </ItemGroup>
 </Project>

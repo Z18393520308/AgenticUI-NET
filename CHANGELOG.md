@@ -2,12 +2,17 @@
 
 ## Unreleased
 
+- 内嵌网关移除 HTTP.sys，改用用户态 TCP/SslStream 与自动持久化证书，不需要 netsh 或系统证书安装。
+- 新增首次指纹核验、一次性配对码、DPAPI 保护的本地凭据、重连与撤销配对；UDP 公告不作为身份信任来源。
+- 两个 Workbench/RemoteConsole 新增原生配对界面，WSS 不再自动跳过证书验证；配置预设不同端口。
+- 增加真实 TLS 配对回归和 Windows net48 专项测试；更新安全边界和首次配对文档。
+
 - 移除无人使用的独立 Gateway 程序及其启动配置，网络服务统一由应用内宿主管理；迁移网络测试和部署文档。
 
 - 新增应用级 AgenticApplicationHost：通过 agenticui.json 控制本机管道、内嵌 WSS 和 UDP 发现，
   网络默认关闭，兼容 net8/net48；控件不包含 AI。
 - 两个 Workbench 接入应用生命周期与配置文件，本机默认随机令牌；新增配置、管道和 WSS 转发测试。
-- 增加内嵌网关部署说明，明确 Windows HTTP.sys 证书/URL 授权、动作白名单及重启生效边界。
+- 增加内嵌网关部署说明，明确首次配对、动作白名单及重启生效边界。
 
 ## 0.6.1
 

@@ -43,8 +43,8 @@ Dispatcher/消息线程执行。
 
 ### 可选网络网关
 
-`AgenticApplicationHost` 在 WPF/WinForms 应用内托管网络服务，兼容 net8/net48。它只在 TLS 上接受
-WebSocket 请求，使用独立的 Gateway 令牌认证远程客户端，经连接数、速率和动作白名单检查后，
+`AgenticApplicationHost` 在应用内使用 TCP/SslStream 托管网络服务，兼容 net8/net48，不依赖 HTTP.sys。它只在 TLS 上接受
+WebSocket 请求，默认通过指纹核验和一次性码配对后使用持久凭据认证，经连接数、速率和动作白名单检查后，
 再用另一把本机令牌连接 `AgenticUI.Remote` Named Pipe。网络默认关闭，由 agenticui.json 显式开启。
 
 可选 UDP 服务是单向广播器，仅公布 WSS 地址和非敏感服务元数据。控制面始终走 TCP/TLS

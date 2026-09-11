@@ -10,6 +10,8 @@ namespace AgenticUI.Workbench.Wpf;
 
 public partial class MainWindow : Window
 {
+    private void Pairing_OnClick(object sender, RoutedEventArgs e) =>
+        AgenticUI.Samples.PairingDialogs.ShowTarget(this, _host.Pairing);
     private static readonly Uri ModernThemeUri =
         new("pack://application:,,,/AgenticUI.Wpf;component/Themes/ModernTheme.xaml");
 
@@ -53,6 +55,11 @@ public partial class MainWindow : Window
         _tokenStatusText = _host.LocalRunning ? $"令牌 {_host.LocalAuthenticationToken}" : "无本机令牌";
         PipeStatusText.Text = _pipeStatusText;
         TokenStatusText.Text = _tokenStatusText;
+        var networkTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+        networkTimer.Tick += (_, _) => NetworkStatusText.Text =
+            $"网络：{(_host.NetworkRunning ? "已启动" : "未启动")} / 发现：{(_host.DiscoveryRunning ? "广播中" : "未广播")}";
+        Closed += (_, _) => networkTimer.Stop();
+        networkTimer.Start();
         _statusResetTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1600) };
         _statusResetTimer.Tick += (_, _) =>
         {

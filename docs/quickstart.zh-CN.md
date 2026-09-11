@@ -94,17 +94,15 @@ var token = server.AuthenticationToken;
 [Gateway 安全部署指南](gateway.zh-CN.md)。
 
 Workbench 当前默认使用随机本机令牌，请复制实际令牌到控制端。
-下方使用开发常量的连接示例仅用于手动配置的本机测试，必须与宿主环境变量中的令牌一致；生产连接请使用部署的 WSS 地址和独立网络令牌：
+WSS 改为首次核验指纹并输入一次性配对码，不再使用预填令牌或跳过证书验证。回调中需实现自己的 UI 弹窗，完整示例见[配对文档](embedded-host.zh-CN.md)：
 
 ```csharp
 using AgenticUI;
 using AgenticUI.Remote;
 
-using var client = await AgenticWebSocketClient.ConnectAsync(
-    new Uri(AgenticRemoteSecurity.DevelopmentGatewayWebSocketUrl),
-    AgenticRemoteSecurity.DevelopmentGatewayToken,
-    clientName: "My AI Agent",
-    skipTlsValidationForDevelopment: true);
+using var client = await AgenticWebSocketClient.ConnectPairedAsync(
+    new Uri("wss://localhost:7443/agenticui"),
+    prompt => ShowPairingDialogOnUiThreadAsync(prompt)); // 由业务 UI 实现：核验指纹并返回一次性码
 
 await client.ExecuteAsync(new AgenticCommand
 {
