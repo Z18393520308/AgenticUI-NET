@@ -5,7 +5,8 @@ import { fileURLToPath } from "node:url";
 import { execFileSync, spawnSync } from "node:child_process";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const read = name => fs.readFileSync(path.join(root, name), "utf8");
+// Windows Git checkout 可能转换为 CRLF；先统一换行，再解析 Markdown 代码围栏。
+const read = name => fs.readFileSync(path.join(root, name), "utf8").replace(/\r\n?/g, "\n");
 const errors = [];
 const entries = [...new Set(execFileSync("git", ["ls-files", "--cached", "--others", "--exclude-standard", "-z"],
   { cwd: root, encoding: "utf8" }).split("\0").filter(Boolean))]
