@@ -209,7 +209,7 @@ public sealed class AgenticNamedPipeClient : IAgenticRemoteClient
             }
         }
         catch (Exception exception) when (
-            exception is IOException or ObjectDisposedException or EndOfStreamException or JsonException)
+            exception is IOException or ObjectDisposedException or EndOfStreamException or JsonException or InvalidDataException)
         {
             if (!cancellationToken.IsCancellationRequested)
             {

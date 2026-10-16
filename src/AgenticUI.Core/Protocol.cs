@@ -87,6 +87,17 @@ public static class AgenticEvents
     public const string FocusChanged = "focusChanged";
     public const string RemoteActionCompleted = "remoteActionCompleted";
     public const string RemoteActionRejected = "remoteActionRejected";
+    /// <summary>传输层事件积压超限时代替断线发出：data.dropped 为丢弃条数，收到后应重新读取状态。</summary>
+    public const string EventsDropped = "eventsDropped";
+
+    /// <summary>不对应任何控件的传输层通知；controlId 为空，sequence 为 0。</summary>
+    public static AgenticEvent CreateEventsDropped(int dropped, string reason) => new()
+    {
+        Name = EventsDropped,
+        Source = AgenticEventSource.Programmatic,
+        Timestamp = DateTimeOffset.UtcNow,
+        Data = new Dictionary<string, object?> { ["dropped"] = dropped, ["reason"] = reason }
+    };
 }
 
 public sealed class AgenticControlDescriptor

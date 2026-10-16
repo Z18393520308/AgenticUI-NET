@@ -29,6 +29,8 @@ internal sealed class WpfControlAdapter : IAgenticControl, IAgenticGuidanceContr
     private TreeViewItem? _lastExpansionNode;
     private Predicate<object>? _originalGridFilter;
     private bool _hasAgenticGridFilter;
+    private string? _originalCustomFilter;
+    private bool _hasAgenticCustomFilter;
     private readonly AgenticItemCollection _items = new();
     private IReadOnlyDictionary<string, object?>? _itemResponse;
     private bool _itemSelectionPending;
@@ -160,7 +162,9 @@ internal sealed class WpfControlAdapter : IAgenticControl, IAgenticGuidanceContr
         finally
         {
             if (selecting) _itemSelectionPending = false;
+            // 表格读取结果只随本次命令返回，不残留在后续 listControls 中（避免陈旧数据和超大消息）。
             _itemResponse = null;
+            _lastCellState = null;
         }
     }
 
@@ -272,12 +276,12 @@ internal sealed class WpfControlAdapter : IAgenticControl, IAgenticGuidanceContr
                 case AgenticActions.GetText when _element is ListView:
                     break;
                 case AgenticActions.SetValue when _element is DatePicker datePicker:
-                    datePicker.SetCurrentValue(DatePicker.SelectedDateProperty, DateTime.Parse(GetArgument(command, "value")?.ToString() ?? throw new ArgumentException("setValue requires a 'value' argument.")));
+                    datePicker.SetCurrentValue(DatePicker.SelectedDateProperty, AgenticArguments.ReadDateTime(GetArgument(command, "value"), "value"));
                     break;
                 case AgenticActions.GetValue when _element is DatePicker:
                     break;
                 case AgenticActions.SetValue when _element is Slider slider:
-                    slider.SetCurrentValue(Slider.ValueProperty, double.Parse(GetArgument(command, "value")?.ToString() ?? throw new ArgumentException("setValue requires a 'value' argument.")));
+                    slider.SetCurrentValue(Slider.ValueProperty, AgenticArguments.ReadDouble(GetArgument(command, "value"), "value"));
                     break;
                 case AgenticActions.GetValue when _element is Slider:
                     break;
@@ -349,7 +353,8 @@ internal sealed class WpfControlAdapter : IAgenticControl, IAgenticGuidanceContr
                     InvokeNativeMenuClick(FindMenuItem(menu.Items, command));
                     break;
                 case AgenticActions.Click when _element is ToolBar toolBar:
-                    InvokeNativeClick(FindToolBarItem(toolBar, command));
+                    // 溢出面板中的项在面板关闭时 IsVisible 为 false，按自身 Visibility 判断。
+                    InvokeNativeClick(FindToolBarItem(toolBar, command), requireRendered: false);
                     break;
                 case AgenticActions.GetValue when _element is ProgressBar:
                     break;
@@ -363,9 +368,10 @@ internal sealed class WpfControlAdapter : IAgenticControl, IAgenticGuidanceContr
         }
     }
 
-    private static void InvokeNativeClick(ButtonBase button)
+    private static void InvokeNativeClick(ButtonBase button, bool requireRendered = true)
     {
-        if (!button.IsEnabled || !button.IsVisible) throw new InvalidOperationException("按钮不可交互。");
+        if (!button.IsEnabled || (requireRendered ? !button.IsVisible : button.Visibility != Visibility.Visible))
+            throw new InvalidOperationException("按钮不可交互。");
         button.Focus();
         // 调用真实控件的虚方法，复用 OnToggle、Click、ICommand；仅 RaiseEvent 会遗漏 ICommand。
         typeof(ButtonBase).GetMethod("OnClick", BindingFlags.Instance | BindingFlags.NonPublic)!
@@ -374,7 +380,13 @@ internal sealed class WpfControlAdapter : IAgenticControl, IAgenticGuidanceContr
 
     private static void InvokeNativeMenuClick(MenuItem item)
     {
-        if (!item.IsEnabled || !item.IsVisible) throw new InvalidOperationException("菜单项不可交互。");
+        // 子菜单未展开时其中的项 IsVisible 为 false；改为逐级检查整条路径的启用和 Visibility。
+        for (var current = item; current is not null;
+             current = ItemsControl.ItemsControlFromItemContainer(current) as MenuItem ?? current.Parent as MenuItem)
+        {
+            if (!current.IsEnabled || current.Visibility != Visibility.Visible)
+                throw new InvalidOperationException("菜单项不可交互。");
+        }
         typeof(MenuItem).GetMethod("OnClick", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(item, null);
     }
 
@@ -974,8 +986,8 @@ internal sealed class WpfControlAdapter : IAgenticControl, IAgenticGuidanceContr
     {
         var row = ReadIndex(GetArgument(command, "row"));
         var column = ResolveGridColumn(grid, GetArgument(command, "column"));
+        // 纯读取：不改 SelectedItem，避免触发业务选择逻辑。
         var item = GetGridItem(grid, row);
-        grid.SelectedItem = item;
         var value = ReadGridValue(grid, grid.Columns[column], item);
         _lastCellState = new Dictionary<string, object?>
         {
@@ -999,7 +1011,7 @@ internal sealed class WpfControlAdapter : IAgenticControl, IAgenticGuidanceContr
         {
             if (cell.Content is not TextBox editor)
                 throw new InvalidOperationException("setCell 当前只支持原生文本编辑列，其他列请使用其真实编辑控件。");
-            var text = NormalizeJsonValue(GetArgument(command, "value") ?? GetArgument(command, "text"))?.ToString() ?? "";
+            var text = FormatForBinding(editor, NormalizeJsonValue(GetArgument(command, "value") ?? GetArgument(command, "text")));
             editor.SetCurrentValue(TextBox.TextProperty, text);
             editor.GetBindingExpression(TextBox.TextProperty)?.UpdateSource();
             if (Validation.GetHasError(editor) || !grid.CommitEdit(DataGridEditingUnit.Cell, true) ||
@@ -1015,6 +1027,24 @@ internal sealed class WpfControlAdapter : IAgenticControl, IAgenticGuidanceContr
         ReadGridCell(grid, command);
     }
 
+    /// <summary>
+    /// 数字按编辑框绑定实际使用的区域性格式化（ConverterCulture，否则元素 Language，WPF 默认 en-US），
+    /// 而不是线程区域性，否则德语系统中 1.5 会被绑定解析成 15。
+    /// </summary>
+    private static string FormatForBinding(TextBox editor, object? value)
+    {
+        if (value is null) return "";
+        if (value is not IFormattable formattable) return value.ToString() ?? "";
+        CultureInfo culture;
+        try
+        {
+            culture = editor.GetBindingExpression(TextBox.TextProperty)?.ParentBinding.ConverterCulture
+                ?? editor.Language.GetEquivalentCulture();
+        }
+        catch (InvalidOperationException) { culture = CultureInfo.InvariantCulture; }
+        return formattable.ToString(null, culture);
+    }
+
     private static void ScrollGridToRow(DataGrid grid, int row)
     {
         var item = GetGridItem(grid, row);
@@ -1028,10 +1058,45 @@ internal sealed class WpfControlAdapter : IAgenticControl, IAgenticGuidanceContr
         var values = ReadObjectArgument(GetArgument(command, "values"));
         var existingItems = GetGridItems(grid);
         var itemType = GetCollectionItemType(grid.ItemsSource?.GetType()) ?? existingItems.FirstOrDefault()?.GetType();
-        if (itemType is null || itemType == typeof(object))
-            throw new InvalidOperationException("addRow could not infer the row type. Use a typed, writable ItemsSource.");
-        var item = Activator.CreateInstance(itemType) ?? throw new InvalidOperationException($"Could not create row type '{itemType.FullName}'.");
-        ApplyObjectValues(item, values, grid);
+        object item;
+        if ((itemType is null || itemType == typeof(object) || itemType.GetConstructor(Type.EmptyTypes) is null) &&
+            CollectionViewSource.GetDefaultView(grid.ItemsSource ?? grid.Items) is IEditableCollectionView { CanAddNew: true } editable)
+        {
+            // DataTable/DataView 等由数据源自己创建行（与 DataGrid 原生新增同一路径）；失败时撤销，不留空行。
+            if (editable.IsAddingNew || editable.IsEditingItem)
+                throw new InvalidOperationException("表格正在新增或编辑行，请先完成或取消当前编辑。");
+            item = editable.AddNew();
+            try
+            {
+                ApplyObjectValues(item, values, grid);
+                editable.CommitNew();
+            }
+            catch
+            {
+                if (editable.IsAddingNew) editable.CancelNew();
+                throw;
+            }
+        }
+        else
+        {
+            if (itemType is null || itemType == typeof(object))
+                throw new InvalidOperationException("addRow could not infer the row type. Use a typed, writable ItemsSource.");
+            item = Activator.CreateInstance(itemType) ?? throw new InvalidOperationException($"Could not create row type '{itemType.FullName}'.");
+            ApplyObjectValues(item, values, grid);
+            AddToGridSource(grid, item);
+        }
+        CollectionViewSource.GetDefaultView(grid.ItemsSource ?? grid.Items)?.Refresh();
+        var rowIndex = GetGridItems(grid).IndexOf(item);
+        grid.SelectedItem = item;
+        _lastCellState = new Dictionary<string, object?>
+        {
+            ["rowIndex"] = rowIndex,
+            ["row"] = CreateGridRowState(grid, item, rowIndex)
+        };
+    }
+
+    private static void AddToGridSource(DataGrid grid, object item)
+    {
         if (grid.ItemsSource is IList source)
         {
             if (source.IsReadOnly || source.IsFixedSize)
@@ -1046,14 +1111,6 @@ internal sealed class WpfControlAdapter : IAgenticControl, IAgenticGuidanceContr
         {
             throw new InvalidOperationException("addRow requires an ItemsSource implementing IList.");
         }
-        CollectionViewSource.GetDefaultView(grid.ItemsSource ?? grid.Items)?.Refresh();
-        var rowIndex = GetGridItems(grid).IndexOf(item);
-        grid.SelectedItem = item;
-        _lastCellState = new Dictionary<string, object?>
-        {
-            ["rowIndex"] = rowIndex,
-            ["row"] = CreateGridRowState(grid, item, rowIndex)
-        };
     }
 
     private static void DeleteGridRow(DataGrid grid, int row)
@@ -1109,9 +1166,30 @@ internal sealed class WpfControlAdapter : IAgenticControl, IAgenticGuidanceContr
         if (string.IsNullOrWhiteSpace(property))
             throw new InvalidOperationException("filterByColumn requires a bound DataGrid column.");
         var view = CollectionViewSource.GetDefaultView(grid.ItemsSource ?? grid.Items);
-        if (!view.CanFilter) throw new InvalidOperationException("The DataGrid view does not support filtering.");
         var filter = NormalizeJsonValue(GetArgument(command, "value"))?.ToString();
         var mode = GetArgument(command, "mode")?.ToString() ?? "contains";
+        if (view is BindingListCollectionView bindingView)
+        {
+            // DataTable/DataView 不支持 Filter 委托，改用数据源自己的 RowFilter 语法，并与原有条件组合。
+            if (!bindingView.CanCustomFilter) throw new InvalidOperationException("The DataGrid view does not support filtering.");
+            if (!_hasAgenticCustomFilter)
+            {
+                _originalCustomFilter = bindingView.CustomFilter;
+                _hasAgenticCustomFilter = true;
+            }
+            if (string.IsNullOrEmpty(filter))
+            {
+                bindingView.CustomFilter = _originalCustomFilter;
+                _originalCustomFilter = null;
+                _hasAgenticCustomFilter = false;
+                return;
+            }
+            var expression = RowFilterExpression(property!, filter!, mode);
+            bindingView.CustomFilter = string.IsNullOrWhiteSpace(_originalCustomFilter)
+                ? expression : $"({_originalCustomFilter}) AND ({expression})";
+            return;
+        }
+        if (!view.CanFilter) throw new InvalidOperationException("The DataGrid view does not support filtering.");
         if (!_hasAgenticGridFilter)
         {
             _originalGridFilter = view.Filter;
@@ -1224,7 +1302,11 @@ internal sealed class WpfControlAdapter : IAgenticControl, IAgenticGuidanceContr
     private static object? ReadBoundPropertyValue(DataGridColumn column, object item)
     {
         var path = GetBindingPath(column);
-        return path is null ? null : item.GetType().GetProperty(path, BindingFlags.Instance | BindingFlags.Public | BindingFlags.IgnoreCase)?.GetValue(item);
+        if (path is null) return null;
+        // 用 WPF 绑定引擎解析列自身的路径：支持 DataTable 的 DataRowView、嵌套属性和索引器，
+        // 且不依赖行容器是否已生成（虚拟化的视口外行也能读到）。
+        var value = WpfItemAccess.ReadPath(item, path);
+        return value is DBNull ? null : value;
     }
 
     private static string? GetBindingPath(DataGridColumn column) =>
@@ -1235,6 +1317,21 @@ internal sealed class WpfControlAdapter : IAgenticControl, IAgenticGuidanceContr
         if (value is null) return defaultValue;
         if (int.TryParse(value.ToString(), out var parsed) && parsed >= 0) return parsed;
         throw new ArgumentException($"'{name}' must be a non-negative integer.");
+    }
+
+    /// <summary>DataColumn 表达式：equals 只转义引号；LIKE 另需把通配符放进方括号。</summary>
+    private static string RowFilterExpression(string property, string filter, string mode)
+    {
+        var column = $"CONVERT([{property.Replace("\\", "\\\\").Replace("]", "\\]")}], 'System.String')";
+        var quoted = filter.Replace("'", "''");
+        var like = quoted.Replace("[", "[[]").Replace("%", "[%]").Replace("*", "[*]");
+        return mode.ToLowerInvariant() switch
+        {
+            "equals" => $"{column} = '{quoted}'",
+            "startswith" => $"{column} LIKE '{like}%'",
+            "contains" => $"{column} LIKE '%{like}%'",
+            _ => throw new ArgumentException("mode must be 'contains', 'equals', or 'startsWith'.")
+        };
     }
 
     private static bool TextMatches(string text, string filter, string mode) => mode.ToLowerInvariant() switch
@@ -1297,10 +1394,12 @@ internal sealed class WpfControlAdapter : IAgenticControl, IAgenticGuidanceContr
         {
             var column = grid.Columns[ResolveGridColumn(grid, pair.Key)];
             var propertyName = GetBindingPath(column) ?? pair.Key;
-            var property = item.GetType().GetProperty(propertyName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.IgnoreCase);
-            if (property is null || !property.CanWrite)
+            // TypeDescriptor 同时覆盖 CLR 对象与 DataTable 的 DataRowView 列。
+            var property = TypeDescriptor.GetProperties(item).Find(propertyName, true);
+            if (property is null || property.IsReadOnly)
                 throw new InvalidOperationException($"Property '{propertyName}' cannot be written.");
-            property.SetValue(item, ConvertForType(pair.Value, property.PropertyType));
+            var converted = ConvertForType(pair.Value, property.PropertyType);
+            property.SetValue(item, converted is null && item is System.Data.DataRowView ? DBNull.Value : converted);
         }
     }
 

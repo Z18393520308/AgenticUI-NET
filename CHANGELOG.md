@@ -2,7 +2,36 @@
 
 ## Unreleased
 
-暂无。
+### 远程会话可靠性
+
+- 事件突发（如日志文本框连续追加、进度条循环更新）不再断开本机 Pipe 或 WSS 会话：积压超限时
+  丢弃并补发 `eventsDropped` 通知（附丢弃条数），控制端据此重新读取状态；只有写入超时才断开。
+- WSS 单条响应超过 MaximumMessageLength 时返回同一 requestId 的明确错误，会话保持可用。
+- 表格读取结果（rows/row/cell/columns）只随本次命令返回，不再残留在后续 listControls 中，
+  避免陈旧数据并防止消息体随读取膨胀。
+- 本机管道首个实例在 Start 中同步创建，名称冲突/权限错误进入宿主 LastError；监听循环瞬时错误
+  自动重试，连续失败后 IsRunning/LocalRunning 如实变为 false 并提供 Fault。
+- WinForms：已排队命令在窗口句柄销毁、控件释放或调用方取消时返回"未执行"失败，不再永久挂起。
+- listControls 跳过个别正在关闭、描述失败的控件，不让整个列表失败；客户端遇到无效消息时
+  结束等待中的请求并报告连接故障。
+
+### 数据正确性
+
+- setValue 的数字与日期按 JSON/不变区域性解析，修复德语等逗号小数系统中 1.5 被写成 15；
+  WPF setCell 按编辑框绑定实际使用的区域性格式化数字。
+- WinForms addRow 失败（列不存在、类型转换失败、校验失败）时撤销待提交行，不留下空白/半填记录；
+  新增已提交后定位失败不再报告为失败，避免控制端重试导致重复新增。
+- WinForms selectRow/addRow 在首列隐藏时改选第一个可见单元格；getCell 改为纯读取，
+  WPF getCell 也不再修改 SelectedItem，隐藏列可读取。
+- WinForms 菜单/工具栏点击会校验整条路径的启用与可用状态，禁用项返回失败而不是静默"成功"。
+- WinForms 过滤 equals 不再套用 LIKE 转义，含 %、*、[ 的值可以精确匹配；列可按 DataPropertyName 定位。
+
+### 兼容性
+
+- 修复 32 位进程（.NET Framework 默认"首选 32 位"）中向下 mouseWheel 抛出溢出异常。
+- WPF 嵌套菜单项无需先展开子菜单即可按路径点击，工具栏溢出区项目可点击；仍逐级校验启用/可见。
+- WPF DataGrid 支持 DataTable/DataView：视口外行可读取真实值，过滤使用 RowFilter 并与原条件组合，
+  addRow 通过视图 AddNew 创建行并在失败时撤销；WinForms addRow 同样支持 DataTable。
 
 ## 0.7.0 — 2026-09-11
 

@@ -13,14 +13,15 @@ internal static class EmbeddedGatewaySession
     {
         using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
         using var abort = lifetime.Token.Register(socket.Abort);
-        // 所有响应和事件共用单一发送者；慢客户端只能积压有限数量消息。
-        using var outbound = new BlockingCollection<byte[]>(32);
+        // 所有响应和事件共用单一发送者。事件突发超限时丢弃并补发 eventsDropped，响应从不丢弃；
+        // 只有发送超时（远端不读数据）或积压的响应过多才断开。
+        var outbound = new OutboundQueue();
         AgenticNamedPipeClient? local = null;
         var sender = Task.Run(async () =>
         {
             try
             {
-                foreach (var bytes in outbound.GetConsumingEnumerable(lifetime.Token))
+                while (await outbound.DequeueAsync(lifetime.Token).ConfigureAwait(false) is { } bytes)
                 {
                     using var timeout = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
                     timeout.CancelAfter(TimeSpan.FromSeconds(10));
@@ -31,16 +32,24 @@ internal static class EmbeddedGatewaySession
             { lifetime.Cancel(); }
         });
 
+        byte[] Serialize(RemoteResponse response) => JsonSerializer.SerializeToUtf8Bytes(response, AgenticJson.Options);
         void Enqueue(RemoteResponse response)
         {
-            try
-            {
-                var bytes = JsonSerializer.SerializeToUtf8Bytes(response, AgenticJson.Options);
-                if (bytes.Length > options.Network.MaximumMessageLength || !outbound.TryAdd(bytes)) lifetime.Cancel();
-            }
-            catch (InvalidOperationException) { lifetime.Cancel(); }
+            var bytes = Serialize(response);
+            // 超大响应改为同一 requestId 的明确错误，连接保持可用，控制端可改为分页读取。
+            if (bytes.Length > options.Network.MaximumMessageLength)
+                bytes = Serialize(Error(response.RequestId,
+                    $"Response exceeds the gateway message limit ({options.Network.MaximumMessageLength} bytes). Request a smaller page or fewer controls."));
+            if (!outbound.TryEnqueueResponse(bytes)) lifetime.Cancel();
         }
-        void OnEvent(AgenticEvent message) => Enqueue(new RemoteResponse { Type = RemoteMessageTypes.Event, Event = message });
+        void OnEvent(AgenticEvent message)
+        {
+            var bytes = Serialize(new RemoteResponse { Type = RemoteMessageTypes.Event, Event = message });
+            if (bytes.Length > options.Network.MaximumMessageLength)
+                bytes = Serialize(new RemoteResponse { Type = RemoteMessageTypes.Event, Event = AgenticEvents.CreateEventsDropped(1, "messageTooLarge") });
+            outbound.EnqueueEvent(bytes, dropped => Serialize(new RemoteResponse
+                { Type = RemoteMessageTypes.Event, Event = AgenticEvents.CreateEventsDropped(dropped, "queueOverflow") }));
+        }
         void OnFault(Exception exception) => lifetime.Cancel();
 
         try
@@ -119,11 +128,90 @@ internal static class EmbeddedGatewaySession
                 local.ConnectionFaulted -= OnFault;
                 local.Dispose(); // 服务端沿原 Pipe 会话清理引导。
             }
-            outbound.CompleteAdding();
+            outbound.Complete();
             // 先尝试发送最后一个错误/响应，但不会无限等待不读数据的远端。
             await Task.WhenAny(sender, Task.Delay(1000)).ConfigureAwait(false);
             lifetime.Cancel();
             await sender.ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>单发送者的有界出站队列。事件与响应同序发送；事件超限进入丢弃状态，积压清空后补发通知。</summary>
+    internal sealed class OutboundQueue
+    {
+        internal const int MaximumPendingEvents = 1024;
+        internal const int MaximumPendingResponses = 64;
+        private readonly object _gate = new();
+        private readonly Queue<(byte[] Bytes, bool IsEvent)> _items = new();
+        private readonly SemaphoreSlim _signal = new(0);
+        private Func<int, byte[]>? _createNotice;
+        private int _pendingEvents;
+        private int _pendingResponses;
+        private int _dropped;
+        private bool _completed;
+
+        public bool TryEnqueueResponse(byte[] bytes)
+        {
+            lock (_gate)
+            {
+                if (_completed) return true;
+                if (_pendingResponses >= MaximumPendingResponses) return false;
+                _items.Enqueue((bytes, false));
+                _pendingResponses++;
+            }
+            _signal.Release();
+            return true;
+        }
+
+        public void EnqueueEvent(byte[] bytes, Func<int, byte[]> createNotice)
+        {
+            lock (_gate)
+            {
+                if (_completed) return;
+                if (_dropped > 0 || _pendingEvents >= MaximumPendingEvents)
+                {
+                    _createNotice = createNotice;
+                    _dropped++;
+                    return;
+                }
+                _items.Enqueue((bytes, true));
+                _pendingEvents++;
+            }
+            _signal.Release();
+        }
+
+        public void Complete()
+        {
+            lock (_gate) _completed = true;
+            _signal.Release();
+        }
+
+        /// <summary>返回下一条待发消息；完成且清空后返回 null。</summary>
+        public async Task<byte[]?> DequeueAsync(CancellationToken token)
+        {
+            while (true)
+            {
+                await _signal.WaitAsync(token).ConfigureAwait(false);
+                lock (_gate)
+                {
+                    if (_items.Count == 0)
+                    {
+                        if (_completed) return null;
+                        continue;
+                    }
+                    var item = _items.Dequeue();
+                    if (!item.IsEvent) _pendingResponses--;
+                    else if (--_pendingEvents == 0 && _dropped > 0)
+                    {
+                        // 通知排在被丢弃事件之前已入队的最后一条事件之后，保持先后语义。
+                        _items.Enqueue((_createNotice!(_dropped), true));
+                        _pendingEvents++;
+                        _dropped = 0;
+                        _signal.Release();
+                    }
+                    return item.Bytes;
+                }
+            }
         }
     }
 

@@ -23,6 +23,8 @@ internal sealed class WinFormsControlAdapter : IAgenticControl, IAgenticGuidance
     private string? _lastStatusText;
     private readonly AgenticItemCollection _items = new();
     private IReadOnlyDictionary<string, object?>? _itemResponse;
+    private readonly object _pendingGate = new();
+    private readonly List<Action> _pendingAbandons = new();
 
     public WinFormsControlAdapter(
         Control control,
@@ -139,8 +141,24 @@ internal sealed class WinFormsControlAdapter : IAgenticControl, IAgenticGuidance
     {
         var completion = new TaskCompletionSource<AgenticCommandResult>(
             TaskCreationOptions.RunContinuationsAsynchronously);
+        var started = 0;
+        // 已排队但尚未开始的命令：窗口销毁或调用方取消时 WinForms 不会再执行委托，必须主动结束等待。
+        void Abandon(string reason)
+        {
+            if (Interlocked.CompareExchange(ref started, -1, 0) == 0)
+                completion.TrySetResult(AgenticCommandResult.Failure(command.RequestId, reason));
+        }
+        var cancellation = cancellationToken.Register(() => Abandon("命令在执行前已取消，未执行。"));
+        Action onGone = () => Abandon("控件窗口已关闭，命令未执行。");
+        lock (_pendingGate) _pendingAbandons.Add(onGone);
+        _ = completion.Task.ContinueWith(_ =>
+        {
+            cancellation.Dispose();
+            lock (_pendingGate) _pendingAbandons.Remove(onGone);
+        }, TaskScheduler.Default);
         void Execute()
         {
+            if (Interlocked.CompareExchange(ref started, 1, 0) != 0) return;
             try
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -151,16 +169,25 @@ internal sealed class WinFormsControlAdapter : IAgenticControl, IAgenticGuidance
             {
                 completion.SetResult(AgenticCommandResult.Failure(command.RequestId, exception.Message));
             }
-            finally { _itemResponse = null; }
+            finally
+            {
+                // 读取结果只随本次命令返回，不残留在后续 listControls 中（避免陈旧数据和超大消息）。
+                _itemResponse = null;
+                _lastCellState = null;
+                _lastStatusText = null;
+            }
         }
 
-        if (_control.InvokeRequired)
+        try
         {
-            _control.BeginInvoke((Action)Execute);
+            if (_control.IsDisposed) Abandon("控件已释放，命令未执行。");
+            else if (_control.InvokeRequired) _control.BeginInvoke((Action)Execute);
+            else Execute();
         }
-        else
+        catch (InvalidOperationException)
         {
-            Execute();
+            // 句柄已销毁时 BeginInvoke 直接抛出，命令确定没有执行。
+            Abandon("控件窗口已关闭，命令未执行。");
         }
 
         return completion.Task;
@@ -358,25 +385,25 @@ internal sealed class WinFormsControlAdapter : IAgenticControl, IAgenticGuidance
                     FindTreeNode(tree, command).Collapse();
                     break;
                 case AgenticActions.Click when _control is MenuStrip menu:
-                    FindToolStripItem(menu.Items, command).PerformClick();
+                    PerformToolStripClick(FindToolStripItem(menu.Items, command));
                     break;
                 case AgenticActions.Click when _control is ToolStrip strip && _control is not StatusStrip and not MenuStrip:
-                    FindToolStripItem(strip.Items, command).PerformClick();
+                    PerformToolStripClick(FindToolStripItem(strip.Items, command));
                     break;
                 case AgenticActions.GetValue when _control is ProgressBar:
                     break;
                 case AgenticActions.SetValue when _control is DateTimePicker dateTimePicker:
-                    dateTimePicker.Value = DateTime.Parse(GetArgument(command, "value")?.ToString() ?? throw new ArgumentException("setValue requires a 'value' argument."));
+                    dateTimePicker.Value = AgenticArguments.ReadDateTime(GetArgument(command, "value"), "value");
                     break;
                 case AgenticActions.GetValue when _control is DateTimePicker:
                     break;
                 case AgenticActions.SetValue when _control is NumericUpDown numericUpDown:
-                    numericUpDown.Value = decimal.Parse(GetArgument(command, "value")?.ToString() ?? throw new ArgumentException("setValue requires a 'value' argument."));
+                    numericUpDown.Value = AgenticArguments.ReadDecimal(GetArgument(command, "value"), "value");
                     break;
                 case AgenticActions.GetValue when _control is NumericUpDown:
                     break;
                 case AgenticActions.SetValue when _control is TrackBar trackBar:
-                    trackBar.Value = int.Parse(GetArgument(command, "value")?.ToString() ?? throw new ArgumentException("setValue requires a 'value' argument."));
+                    trackBar.Value = AgenticArguments.ReadInt32(GetArgument(command, "value"), "value");
                     break;
                 case AgenticActions.GetValue when _control is TrackBar:
                     break;
@@ -474,13 +501,25 @@ internal sealed class WinFormsControlAdapter : IAgenticControl, IAgenticGuidance
     }
 
     private void OnHandleCreated(object? sender, EventArgs args) => Register();
+    private void AbandonPendingCommands()
+    {
+        Action[] pending;
+        lock (_pendingGate) pending = _pendingAbandons.ToArray();
+        foreach (var abandon in pending) abandon();
+    }
     private void OnHandleDestroyed(object? sender, EventArgs args)
     {
+        // 句柄销毁后已排队的 BeginInvoke 委托不会再执行，结束这些等待而不是让调用方永久挂起。
+        AbandonPendingCommands();
         UnhookEvents();
         RemoveHighlight();
         Unregister();
     }
-    private void OnDisposed(object? sender, EventArgs args) => Detach();
+    private void OnDisposed(object? sender, EventArgs args)
+    {
+        AbandonPendingCommands();
+        Detach();
+    }
 
     private static bool IsDesignMode(Control control) =>
         LicenseManager.UsageMode == LicenseUsageMode.Designtime ||
@@ -966,8 +1005,12 @@ internal sealed class WinFormsControlAdapter : IAgenticControl, IAgenticGuidance
         var target = GetGridRow(grid, row);
         grid.ClearSelection();
         target.Selected = true;
-        if (grid.Columns.Count > 0) grid.CurrentCell = target.Cells[0];
+        // 第一列常是隐藏的 ID 列；CurrentCell 不能设为隐藏单元格，取第一个可见单元格。
+        if (FirstVisibleCell(grid, target) is { } cell) grid.CurrentCell = cell;
     }
+
+    private static DataGridViewCell? FirstVisibleCell(DataGridView grid, DataGridViewRow row) =>
+        grid.Columns.GetFirstColumn(DataGridViewElementStates.Visible) is { } column ? row.Cells[column.Index] : null;
 
     private void ReadGridRow(DataGridView grid, AgenticCommand command)
     {
@@ -1020,8 +1063,8 @@ internal sealed class WinFormsControlAdapter : IAgenticControl, IAgenticGuidance
     {
         var row = ReadIndex(GetArgument(command, "row"));
         var column = ResolveGridColumn(grid, GetArgument(command, "column"));
+        // 纯读取：不改 CurrentCell，避免改变选择、提交用户正在编辑的单元格或在隐藏列上失败。
         var cell = GetGridRow(grid, row).Cells[column];
-        grid.CurrentCell = cell;
         _lastCellState = new Dictionary<string, object?>
         {
             ["rowIndex"] = row,
@@ -1044,7 +1087,8 @@ internal sealed class WinFormsControlAdapter : IAgenticControl, IAgenticGuidance
         {
             if (grid.EditingControl is not DataGridViewTextBoxEditingControl editor)
                 throw new InvalidOperationException("setCell 当前只支持原生文本编辑列，其他列请使用其真实编辑控件。");
-            editor.Text = Convert.ToString(value, CultureInfo.CurrentCulture) ?? "";
+            // 与单元格解析输入时使用的格式提供程序一致（默认当前区域性）。
+            editor.Text = Convert.ToString(value, cell.InheritedStyle.FormatProvider ?? CultureInfo.CurrentCulture) ?? "";
             grid.NotifyCurrentCellDirty(true);
             if (!grid.EndEdit()) throw new InvalidOperationException("单元格编辑未通过原有校验。");
         }
@@ -1072,20 +1116,38 @@ internal sealed class WinFormsControlAdapter : IAgenticControl, IAgenticGuidance
         if (grid.DataSource is BindingSource source)
         {
             var item = source.AddNew() ?? throw new InvalidOperationException("The bound data source could not create a row.");
-            ApplyObjectValues(item, values, grid);
-            source.EndEdit();
+            try
+            {
+                ApplyObjectValues(item, values, grid);
+                source.EndEdit();
+            }
+            catch
+            {
+                // AddNew 的待提交行不能留下，否则用户切换行时会把空白/半填记录提交进业务数据。
+                CancelPendingNew(source, item);
+                throw;
+            }
             grid.Refresh();
             addedRow = grid.Rows.Cast<DataGridViewRow>().FirstOrDefault(row => ReferenceEquals(row.DataBoundItem, item));
         }
         else if (grid.DataSource is null)
         {
-            var sourceIndex = grid.Rows.Add();
-            addedRow = grid.Rows[sourceIndex];
-            foreach (var pair in values)
+            // 先解析全部列和值，全部有效后才新增行。
+            var cells = values.Select(pair =>
             {
                 var column = ResolveGridColumn(grid, pair.Key);
-                var cell = addedRow.Cells[column];
-                cell.Value = ConvertForType(pair.Value, cell.ValueType ?? grid.Columns[column].ValueType);
+                return (Column: column, Value: ConvertForType(pair.Value, grid.Columns[column].ValueType));
+            }).ToArray();
+            var sourceIndex = grid.Rows.Add();
+            addedRow = grid.Rows[sourceIndex];
+            try
+            {
+                foreach (var (column, value) in cells) addedRow.Cells[column].Value = value;
+            }
+            catch
+            {
+                grid.Rows.RemoveAt(sourceIndex);
+                throw;
             }
         }
         else
@@ -1094,7 +1156,12 @@ internal sealed class WinFormsControlAdapter : IAgenticControl, IAgenticGuidance
         }
 
         var rowIndex = addedRow is null ? -1 : GetGridRows(grid).IndexOf(addedRow);
-        if (rowIndex >= 0) SelectGridRow(grid, rowIndex);
+        // 行已经提交；随后的定位只是便利，失败不能把已成功的新增报告成失败（否则控制端重试会重复新增）。
+        if (rowIndex >= 0)
+        {
+            try { SelectGridRow(grid, rowIndex); }
+            catch (InvalidOperationException) { }
+        }
         _lastCellState = new Dictionary<string, object?>
         {
             ["rowIndex"] = rowIndex,
@@ -1150,12 +1217,15 @@ internal sealed class WinFormsControlAdapter : IAgenticControl, IAgenticGuidance
                 return;
             }
             var property = string.IsNullOrWhiteSpace(column.DataPropertyName) ? column.Name : column.DataPropertyName;
-            var escaped = filter!.Replace("'", "''").Replace("[", "[[]").Replace("%", "[%]").Replace("*", "[*]");
+            // equals 只转义引号；LIKE 另需把通配符放进方括号，否则含 %、*、[ 的值无法精确匹配。
+            var expressionColumn = $"CONVERT([{property.Replace("\\", "\\\\").Replace("]", "\\]")}], 'System.String')";
+            var quoted = filter!.Replace("'", "''");
+            var like = quoted.Replace("[", "[[]").Replace("%", "[%]").Replace("*", "[*]");
             source.Filter = mode.ToLowerInvariant() switch
             {
-                "equals" => $"CONVERT([{property}], 'System.String') = '{escaped}'",
-                "startswith" => $"CONVERT([{property}], 'System.String') LIKE '{escaped}%'",
-                "contains" => $"CONVERT([{property}], 'System.String') LIKE '%{escaped}%'",
+                "equals" => $"{expressionColumn} = '{quoted}'",
+                "startswith" => $"{expressionColumn} LIKE '{like}%'",
+                "contains" => $"{expressionColumn} LIKE '%{like}%'",
                 _ => throw new ArgumentException("mode must be 'contains', 'equals', or 'startsWith'.")
             };
             return;
@@ -1201,8 +1271,9 @@ internal sealed class WinFormsControlAdapter : IAgenticControl, IAgenticGuidance
         var column = ResolveGridColumn(grid, GetArgument(command, "column"));
         var target = GetGridRow(grid, row);
         ScrollGridToRow(grid, row);
-        grid.ClearSelection();
         var cell = target.Cells[column];
+        if (!cell.Visible) throw new InvalidOperationException("目标列已隐藏，不能定位为当前单元格；读取请使用 getCell/getRow。");
+        grid.ClearSelection();
         grid.CurrentCell = cell;
         cell.Selected = true;
         _lastCellState = new Dictionary<string, object?>
@@ -1305,11 +1376,21 @@ internal sealed class WinFormsControlAdapter : IAgenticControl, IAgenticGuidance
         {
             var column = grid.Columns[ResolveGridColumn(grid, pair.Key)];
             var propertyName = string.IsNullOrWhiteSpace(column.DataPropertyName) ? pair.Key : column.DataPropertyName;
-            var property = item.GetType().GetProperty(propertyName, System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.IgnoreCase);
-            if (property is null || !property.CanWrite)
+            // TypeDescriptor 同时覆盖 CLR 对象与 DataTable 的 DataRowView 列。
+            var property = TypeDescriptor.GetProperties(item).Find(propertyName, true);
+            if (property is null || property.IsReadOnly)
                 throw new InvalidOperationException($"Property '{propertyName}' cannot be written.");
-            property.SetValue(item, ConvertForType(pair.Value, property.PropertyType));
+            var converted = ConvertForType(pair.Value, property.PropertyType);
+            property.SetValue(item, converted is null && item is System.Data.DataRowView ? DBNull.Value : converted);
         }
+    }
+
+    private static void CancelPendingNew(BindingSource source, object item)
+    {
+        try { source.CancelEdit(); }
+        catch (Exception exception) when (exception is InvalidOperationException or ArgumentException) { }
+        var index = source.IndexOf(item);
+        if (index >= 0) source.RemoveAt(index);
     }
 
     private static int ResolveGridColumn(DataGridView grid, object? value)
@@ -1317,7 +1398,9 @@ internal sealed class WinFormsControlAdapter : IAgenticControl, IAgenticGuidance
         if (value is not null && int.TryParse(value.ToString(), out var index) && index >= 0 && index < grid.Columns.Count) return index;
         var column = grid.Columns.Cast<DataGridViewColumn>().FirstOrDefault(item =>
             string.Equals(item.Name, value?.ToString(), StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(item.HeaderText, value?.ToString(), StringComparison.OrdinalIgnoreCase));
+            string.Equals(item.HeaderText, value?.ToString(), StringComparison.OrdinalIgnoreCase) ||
+            (!string.IsNullOrEmpty(item.DataPropertyName) &&
+             string.Equals(item.DataPropertyName, value?.ToString(), StringComparison.OrdinalIgnoreCase)));
         return column?.Index ?? throw new ArgumentOutOfRangeException(nameof(value), $"Column '{value}' was not found.");
     }
 
@@ -1372,6 +1455,19 @@ internal sealed class WinFormsControlAdapter : IAgenticControl, IAgenticGuidance
             parts.Push(current.Text);
         }
         return string.Join("/", parts);
+    }
+
+    /// <summary>
+    /// PerformClick 对禁用或不可用的项静默不执行；这里先校验整条菜单路径，避免把未执行的点击报告为成功。
+    /// </summary>
+    private static void PerformToolStripClick(ToolStripItem item)
+    {
+        for (var current = item; current is not null; current = current.OwnerItem)
+        {
+            if (!current.Enabled || !current.Available)
+                throw new InvalidOperationException($"菜单项 '{current.Text?.Replace("&", "")}' 已禁用或不可用，未执行点击。");
+        }
+        item.PerformClick();
     }
 
     private static ToolStripItem FindToolStripItem(ToolStripItemCollection items, AgenticCommand command)
