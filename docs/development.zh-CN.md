@@ -165,7 +165,7 @@ Dispatcher：查控件 → 检查声明动作 → 调用 IAgenticCommandAuthoriz
 | click | 按钮/输入/勾选/下拉；菜单另有 path/value | 按钮原生点击，文本聚焦，单选选中，复选切换，下拉打开 |
 | setText / getText | 文本框；设置 text | getText 结果 state.text；只读拒绝修改，设置不隐含失焦/提交 |
 | setChecked / getChecked | 单选/复选/ToggleButton；checked 布尔 | state.checked；CheckedListBox 设置额外要求 index |
-| setValue / getValue | 日期/数值/滑块；value | 日期 ISO-8601 或 yyyy-MM-dd；数值用 JSON 数字；受范围限制 |
+| setValue / getValue | 日期/数值/滑块；value | 日期 ISO-8601 或 yyyy-MM-dd；数值用 JSON 数字（字符串按不变区域性解析，不受系统区域性影响）；受范围限制 |
 | getValue | ProgressBar | 只读 value/minimum/maximum，无通用 setValue |
 | selectItem | ComboBox/ListBox/ListView/TabControl/树 | 列表 index/value；items.v1 另支持 itemKey；树另支持 path |
 | getItems | ComboBox、普通 ListBox、WinForms CheckedListBox | 0.7.0 起分页候选；不适用于 WPF ListView/TabControl/树/Grid |
@@ -176,6 +176,7 @@ Dispatcher：查控件 → 检查声明动作 → 调用 IAgenticCommandAuthoriz
 标签、文本展示、列表及部分导航控件也提供 getText；不是任意对象的序列化接口。
 CheckedListBox 的 getChecked 返回当前选中项的 checked，全部勾选索引在 checkedIndices。
 菜单/工具栏 click 用 path（如文件/打开）或 value（项文字，WinForms 忽略快捷键标记 &）。
+子菜单无需先展开；路径上任一级禁用或隐藏时返回失败，不会把未执行的点击报告为成功。
 不承诺按文本解析任意复杂自定义模板。
 
 ### 应用内鼠标
@@ -289,18 +290,23 @@ WPF columns 含 index/name/header/bindingPath/readOnly/visible/sortDirection；W
 dataProperty/valueType 等字段。行对象含 `_index`；WinForms 另有 `_sourceIndex`、`_visible`。
 行字典键取列绑定路径/名称等，冲突可能退回索引字符串，不猜字段名。
 
-getCell 当前虽然不改数据，但 WPF 会设置 SelectedItem，WinForms 会设置 CurrentCell，
-可能改变选择或触发相应事件；需要保持选择的观察场景优先 getRow/getRows。它不是纯粹无 UI 副作用读取。
-读取的是表格视图状态。部分表格结果在适配器中保留为最后一次操作快照，不把后来枚举的旧
-row/cell 字段当成实时业务事实；需要时重新执行读取命令。不会自动跟数据库锁或事务联动。
+getCell/getRow/getRows/getColumns 是纯读取，不改选择或当前单元格（未发布源码起；0.7.0 的 getCell
+会设置 WPF SelectedItem / WinForms CurrentCell），隐藏列也可读取。
+读取的是表格视图状态。columns/rows/row/cell 等表格结果只出现在本次命令的 result.control.state，
+不再残留到之后的 listControls 或其他命令结果；需要时重新执行读取命令。不会自动跟数据库锁或事务联动。
 
 ### 数据源与编辑限制
 
 - 两端 setCell 尊重表格/列/单元格只读并走原生文本编辑器；模板、ComboBox、CheckBox 等
   非文本编辑列不做直接业务属性赋值旁路。修改失败后重新读取，不承诺模型回滚。
-- 两端增删要求表格非只读且允许人工增删。WPF 增删需可写、可推断行类型的 IList，新增类型
-  需公开无参构造函数；values 按公开可写属性转换。只读集合和不可写属性明确失败。
-- WinForms 增删支持未绑定表格或 BindingSource，绑定新增需要 AddNew 能创建可写 CLR 行对象。
+- 两端增删要求表格非只读且允许人工增删。WPF 增删需可写、可推断行类型的 IList（新增类型
+  需公开无参构造函数），或可由视图 AddNew 创建行的数据源（如 DataTable.DefaultView）；
+  values 按 TypeDescriptor 可写属性/DataTable 列转换。只读集合和不可写属性明确失败。
+- WPF 读取/过滤通过列自身绑定路径解析值，支持 DataRowView、嵌套属性，视口外未生成容器的行
+  同样可读；DataTable 视图的过滤改用其 RowFilter 语法，并与原有 CustomFilter 组合。
+- WinForms 增删支持未绑定表格或 BindingSource，绑定新增需要 AddNew 能创建可写 CLR 行对象或
+  DataRowView。新增值无效或列不存在时撤销待提交行，不留下空白/半填记录；新增已提交后，
+  随后的选中定位失败不影响成功结果。selectRow 选第一个可见单元格（首列可隐藏）。
   绑定排序/过滤必须由数据源提供；SupportsFiltering=false 时不能通过设置字符串强行过滤。
 - WPF 排序/过滤需 DataGridBoundColumn 的可识别属性绑定，尊重可排序设置；现有 Filter 会与
   当前 AgenticUI 条件组合。每次只有一个 AgenticUI 列过滤，不是任意查询表达式。
@@ -366,14 +372,19 @@ TreeView 两端 treeStateVersion=1：
 
 sequence 为事件总线分配的递增序号，不是跨重启永久序列或消息可靠交付凭据。
 事件包括 clicked、pressed、released、textChanged、valueChanged、checkedChanged、selectionChanged、
-expanded、collapsed、dropDownOpened、dropDownClosed、focusChanged、remoteActionCompleted、remoteActionRejected。
+expanded、collapsed、dropDownOpened、dropDownClosed、focusChanged、remoteActionCompleted、remoteActionRejected，
+以及传输层的 eventsDropped（见下文）。
 树选择带 selection/path，展开/折叠带 path/expanded；0.7.0 起选项选择带 selection/itemKey。
 
 Source 枚举有 User/Remote/Programmatic/Replay，但现有适配器主要按远程调用作用域区分 Remote
 与默认 User；普通宿主代码改值也可能落入 User，未提供通用 Programmatic/Replay 来源作用域。
 内置回放经 Dispatcher 走 Remote，不保证事件显示 Replay。不能仅凭枚举值声称精确识别人类行为。
 
-事件总线隔离订阅异常；网络事件队列有界，慢连接超限断开，不是永久可靠消息队列。
+事件总线隔离订阅异常；网络事件队列有界，不是永久可靠消息队列。突发事件超过积压上限（本机
+Pipe 每连接 1024 条、WSS 网关每会话 1024 条）时不再断线，而是丢弃直到积压清空，再补发一条
+`eventsDropped`：controlId 为空、sequence 为 0，data.dropped 为丢弃条数、data.reason 为
+queueOverflow 或 messageTooLarge。收到后应重新 listControls/读取需要的状态。只有写入超时
+（远端不读数据）才断开连接。
 没有通用 stateChanged 全量状态推送协议。控制端重连后需要重新发现、读取和判断。
 
 ### 8.3 隐私边界
@@ -432,6 +443,10 @@ getRow、getRows、getColumns、getCell、scrollToRow、highlightCell、selectCe
 click/setText/selectItem/增删改/鼠标等需显式添加。配对不扩大白名单。
 
 配置缺失/非法时 LastError 给出净化诊断，不抛入业务 UI；不要仅看 AutoStart 判断服务成功。
+本机管道在启动时同步创建首个实例，名称被占用或权限不足会进入 LastError；监听循环连续失败
+而停止时 LocalRunning 变为 false（AgenticNamedPipeServer.IsRunning/Fault 同理），不会一直报告运行中。
+WSS 单条响应超过 MaximumMessageLength 时返回同一 requestId 的 error（提示分页/减少数量），
+会话保持可用，不再直接断开。
 若网络初始化阶段失败，已启动的 Pipe 可以保留；无效配置可能在启动任何服务前就被拒绝。
 必须看 LocalRunning/NetworkRunning/DiscoveryRunning。不会广播未成功启动的网络服务。
 

@@ -470,9 +470,11 @@ Controls.Add(grid);
 单次最多 500 行。过滤 value 为空字符串或 null 清除。关键限制：
 
 - 排序/过滤/增删后重读，不沿用旧行号；目前没有 DataGrid 行版本/稳定行键协议。
-- getCell 当前可能改变表格选中项/当前单元格；仅观察且需要保持选择时优先 getRow/getRows。
+- getCell/getRow/getRows 是纯读取，不改选中项（0.7.0 的 getCell 会改变选中项/当前单元格）。
+- 表格读取结果只在本次命令结果里返回，之后的 listControls 不再携带旧行数据。
 - setCell 走支持的原生文本编辑器及校验，不保证模板、复选、下拉编辑列支持。
-- WPF 增删需可写 IList 数据源和可创建行类型；排序/过滤需可识别绑定属性。
+- WPF 增删需可写 IList 数据源和可创建行类型，或 DataTable 等可由视图新增行的数据源；
+  排序/过滤需可识别绑定属性。
 - WinForms 增删支持未绑定表格或 BindingSource；绑定排序/过滤依赖底层能力。
   普通 BindingList 套上 BindingSource 不会自动支持过滤。
 - 失败不保证业务回滚；非文本编辑器和高风险操作继续走原应用授权和事件。

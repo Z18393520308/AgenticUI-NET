@@ -274,7 +274,8 @@ public sealed class AgenticWebSocketClient : IAgenticRemoteClient
             }
         }
         catch (Exception exception) when (
-            exception is WebSocketException or ObjectDisposedException or IOException or JsonException or OperationCanceledException)
+            exception is WebSocketException or ObjectDisposedException or IOException or JsonException or OperationCanceledException or
+            InvalidDataException)
         {
             if (!cancellationToken.IsCancellationRequested)
             {

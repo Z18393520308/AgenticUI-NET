@@ -81,7 +81,8 @@ internal static class WpfMouseInput
     private static void Wheel(FrameworkElement element, IntPtr handle, Point point, int delta)
     {
         var screen = element.PointToScreen(point);
-        var wheelData = new IntPtr((long)(delta & 0xffff) << 16);
+        // 高 16 位为有符号滚动量；用 int 移位，32 位进程中负值也不会溢出 IntPtr。
+        var wheelData = new IntPtr(delta << 16);
         SendMessage(handle, WmMouseWheel, wheelData, PackPoint(screen));
     }
 

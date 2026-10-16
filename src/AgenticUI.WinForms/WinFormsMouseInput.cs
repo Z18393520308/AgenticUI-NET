@@ -64,7 +64,8 @@ internal static class WinFormsMouseInput
     private static void Wheel(Control control, Point point, int delta)
     {
         var screen = control.PointToScreen(point);
-        var wheelData = new IntPtr((long)(delta & 0xffff) << 16);
+        // 高 16 位为有符号滚动量；用 int 移位，32 位进程中负值也不会溢出 IntPtr。
+        var wheelData = new IntPtr(delta << 16);
         Send(control.Handle, WmMouseWheel, wheelData, PackPoint(screen));
     }
 

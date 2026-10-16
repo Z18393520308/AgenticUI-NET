@@ -56,7 +56,7 @@ internal static class WpfItemAccess
         return true;
     }
 
-    private static object? ReadPath(object item, string path)
+    internal static object? ReadPath(object item, string path)
     {
         // 使用 WPF 自己的绑定引擎，支持嵌套属性、索引器以及 XML 路径，而不是只反射一级属性。
         var probe = new BindingProbe();

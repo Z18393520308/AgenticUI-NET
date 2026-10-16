@@ -17,6 +17,7 @@ public sealed class AgenticNamedPipeServer : IDisposable
     private CancellationTokenSource? _lifetime;
     private Task? _acceptLoop;
     private NamedPipeServerStream? _pendingServer;
+    private Exception? _fault;
     private int _clientId;
 
     public AgenticNamedPipeServer(
@@ -45,9 +46,13 @@ public sealed class AgenticNamedPipeServer : IDisposable
         _eventSubscription = (events ?? AgenticEventBus.Default).Subscribe(BroadcastEventAsync);
     }
 
-    public bool IsRunning => _lifetime is not null;
+    /// <summary>监听循环因不可恢复错误终止后为 false；原因见 <see cref="Fault"/>。</summary>
+    public bool IsRunning => _lifetime is not null && Volatile.Read(ref _fault) is null;
+    /// <summary>监听循环终止的原因；仅含异常类型等本地诊断信息，不包含令牌。</summary>
+    public Exception? Fault => Volatile.Read(ref _fault);
     public string AuthenticationToken { get; }
 
+    /// <summary>同步创建首个管道实例，名称冲突、权限不足等错误直接抛给调用方而不是被后台任务吞掉。</summary>
     public void Start()
     {
         if (_lifetime is not null)
@@ -55,8 +60,10 @@ public sealed class AgenticNamedPipeServer : IDisposable
             return;
         }
 
+        var first = CreatePipe();
+        _fault = null;
         _lifetime = new CancellationTokenSource();
-        _acceptLoop = AcceptLoopAsync(_lifetime.Token);
+        _acceptLoop = AcceptLoopAsync(first, _lifetime.Token);
     }
 
     public async Task StopAsync()
@@ -98,36 +105,52 @@ public sealed class AgenticNamedPipeServer : IDisposable
         _eventSubscription.Dispose();
     }
 
-    private async Task AcceptLoopAsync(CancellationToken cancellationToken)
+    private NamedPipeServerStream CreatePipe() => new(
+        _pipeName,
+        PipeDirection.InOut,
+        NamedPipeServerStream.MaxAllowedServerInstances,
+        PipeTransmissionMode.Byte,
+        CreatePipeOptions());
+
+    private async Task AcceptLoopAsync(NamedPipeServerStream? first, CancellationToken cancellationToken)
     {
+        var consecutiveFailures = 0;
         while (!cancellationToken.IsCancellationRequested)
         {
-            var pipe = new NamedPipeServerStream(
-                _pipeName,
-                PipeDirection.InOut,
-                NamedPipeServerStream.MaxAllowedServerInstances,
-                PipeTransmissionMode.Byte,
-                CreatePipeOptions());
-            Interlocked.Exchange(ref _pendingServer, pipe)?.Dispose();
+            NamedPipeServerStream pipe;
             try
             {
+                pipe = first ?? CreatePipe();
+                first = null;
+                Interlocked.Exchange(ref _pendingServer, pipe)?.Dispose();
 #if NET8_0_OR_GREATER
                 await pipe.WaitForConnectionAsync(cancellationToken).ConfigureAwait(false);
 #else
                 await Task.Run(() => pipe.WaitForConnection(), cancellationToken).ConfigureAwait(false);
 #endif
                 Interlocked.CompareExchange(ref _pendingServer, null, pipe);
+                consecutiveFailures = 0;
             }
-            catch
+            catch (Exception exception)
             {
-                Interlocked.CompareExchange(ref _pendingServer, null, pipe);
-                pipe.Dispose();
+                Interlocked.Exchange(ref _pendingServer, null)?.Dispose();
                 if (cancellationToken.IsCancellationRequested)
                 {
                     break;
                 }
 
-                throw;
+                // 客户端连上即断开等瞬时错误不应永久停止监听；连续失败才视为不可恢复。
+                if (++consecutiveFailures >= 5)
+                {
+                    Volatile.Write(ref _fault, exception);
+                    System.Diagnostics.Trace.TraceError(
+                        "AgenticUI 本机管道监听已停止（" + exception.GetType().Name + "）。");
+                    return;
+                }
+
+                try { await Task.Delay(100 * consecutiveFailures, cancellationToken).ConfigureAwait(false); }
+                catch (OperationCanceledException) { break; }
+                continue;
             }
 
             var id = Interlocked.Increment(ref _clientId);
@@ -262,7 +285,7 @@ public sealed class AgenticNamedPipeServer : IDisposable
         foreach (var pair in _clients.ToArray())
         {
             if (_options.RequireAuthentication && !pair.Value.IsAuthenticated) continue;
-            // 有界队列：慢客户端断开，不阻塞 UI 事件和业务动作，也不悄悄丢失审计事件。
+            // 有界队列：不阻塞 UI 事件和业务动作；超限以 eventsDropped 显式告知，只有已断开的连接才移除。
             if (!pair.Value.TryQueueEvent(response) && _clients.TryRemove(pair.Key, out var connection))
                 connection.Dispose();
         }
@@ -283,11 +306,14 @@ public sealed class AgenticNamedPipeServer : IDisposable
 
     private sealed class ClientConnection : IDisposable
     {
+        internal const int MaximumQueuedEvents = 1024;
         private readonly SemaphoreSlim _writeLock = new(1, 1);
         private readonly SemaphoreSlim _eventSignal = new(0);
-        private readonly ConcurrentQueue<RemoteResponse> _events = new();
+        private readonly object _eventGate = new();
+        private readonly Queue<RemoteResponse> _events = new();
         private readonly CancellationTokenSource _closed = new();
-        private int _eventCount;
+        private int _droppedEvents;
+        private bool _overflowed;
         private int _disposed;
         public string SessionId { get; } = Guid.NewGuid().ToString("N");
 
@@ -305,15 +331,23 @@ public sealed class AgenticNamedPipeServer : IDisposable
         public bool IsAuthenticated { get; set; }
         public string? ClientName { get; set; }
 
+        /// <summary>
+        /// 有界队列：突发事件超限时不断线，而是丢弃直到积压清空，再补发一条 eventsDropped 通知，
+        /// 让控制端知道需要重新读取状态。只有写入超时（真正不读数据的客户端）才断开。
+        /// </summary>
         public bool TryQueueEvent(RemoteResponse response)
         {
-            if (Volatile.Read(ref _disposed) != 0) return false;
-            if (Interlocked.Increment(ref _eventCount) > 256)
+            lock (_eventGate)
             {
-                Interlocked.Decrement(ref _eventCount);
-                return false;
+                if (Volatile.Read(ref _disposed) != 0) return false;
+                if (_overflowed || _events.Count >= MaximumQueuedEvents)
+                {
+                    _overflowed = true;
+                    _droppedEvents++;
+                    return true;
+                }
+                _events.Enqueue(response);
             }
-            _events.Enqueue(response);
             _eventSignal.Release();
             return true;
         }
@@ -325,11 +359,25 @@ public sealed class AgenticNamedPipeServer : IDisposable
                 while (!_closed.IsCancellationRequested)
                 {
                     await _eventSignal.WaitAsync(_closed.Token).ConfigureAwait(false);
-                    if (_events.TryDequeue(out var response))
+                    RemoteResponse? response;
+                    RemoteResponse? notice = null;
+                    lock (_eventGate)
                     {
-                        Interlocked.Decrement(ref _eventCount);
-                        await SendAsync(response, _closed.Token).ConfigureAwait(false);
+                        if (_events.Count == 0) continue;
+                        response = _events.Dequeue();
+                        if (_events.Count == 0 && _overflowed)
+                        {
+                            notice = new RemoteResponse
+                            {
+                                Type = RemoteMessageTypes.Event,
+                                Event = AgenticEvents.CreateEventsDropped(_droppedEvents, "queueOverflow")
+                            };
+                            _droppedEvents = 0;
+                            _overflowed = false;
+                        }
                     }
+                    await SendAsync(response, _closed.Token).ConfigureAwait(false);
+                    if (notice is not null) await SendAsync(notice, _closed.Token).ConfigureAwait(false);
                 }
             }
             catch (Exception exception) when (exception is IOException or ObjectDisposedException or OperationCanceledException)

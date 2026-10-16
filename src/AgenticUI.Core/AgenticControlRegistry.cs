@@ -95,8 +95,16 @@ public sealed class AgenticControlRegistry
             });
         }
 
-        return query
-            .Select(control => control.Describe())
+        // 正在关闭的窗口或已停止的 UI 线程可能使单个控件描述失败；跳过它，不让整个列表失败。
+        var descriptors = new List<AgenticControlDescriptor>();
+        foreach (var control in query)
+        {
+            try { descriptors.Add(control.Describe()); }
+            catch (Exception exception) when (exception is InvalidOperationException or ObjectDisposedException or
+                OperationCanceledException or System.ComponentModel.InvalidAsynchronousStateException) { }
+        }
+
+        return descriptors
             .OrderBy(descriptor => descriptor.Id, StringComparer.OrdinalIgnoreCase)
             .ToArray();
     }
