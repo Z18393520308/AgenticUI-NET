@@ -5,6 +5,7 @@ using System.Runtime.ExceptionServices;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Threading;
 using AgenticUI.Wpf;
 using Xunit;
@@ -92,7 +93,7 @@ public sealed class RegressionTests
             var rejected = await Execute(grid, AgenticActions.AddRow, ("values", Json("""{"Name":"Bad","Score":"x"}""")));
             Assert.False(rejected.Succeeded);
             Assert.Equal(202, table.Rows.Count);
-            Assert.False(((IEditableCollectionView)table.DefaultView).IsAddingNew);
+            Assert.False(((IEditableCollectionView)CollectionViewSource.GetDefaultView(table.DefaultView)).IsAddingNew);
         }
         finally { window.Close(); }
     });
